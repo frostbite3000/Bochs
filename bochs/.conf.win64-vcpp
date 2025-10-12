@@ -17,6 +17,7 @@ set echo
             --enable-pci \
             --enable-clgd54xx \
             --enable-geforce \
+            --enable-radeon \
             --enable-voodoo \
             --enable-usb \
             --enable-usb-ohci \

@@ -46,6 +46,7 @@ extern "C" {
 #define BX_PLUGIN_VGA       "vga"
 #define BX_PLUGIN_CIRRUS    "svga_cirrus"
 #define BX_PLUGIN_GEFORCE   "geforce"
+#define BX_PLUGIN_RADEON    "radeon"
 #define BX_PLUGIN_FLOPPY    "floppy"
 #define BX_PLUGIN_PARALLEL  "parallel"
 #define BX_PLUGIN_SERIAL    "serial"
@@ -419,6 +420,7 @@ PLUGIN_ENTRY_FOR_MODULE(pit);
 PLUGIN_ENTRY_FOR_MODULE(vga);
 PLUGIN_ENTRY_FOR_MODULE(svga_cirrus);
 PLUGIN_ENTRY_FOR_MODULE(geforce);
+PLUGIN_ENTRY_FOR_MODULE(radeon);
 PLUGIN_ENTRY_FOR_MODULE(floppy);
 PLUGIN_ENTRY_FOR_MODULE(parallel);
 PLUGIN_ENTRY_FOR_MODULE(pci);

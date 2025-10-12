@@ -1967,6 +1967,24 @@ AC_ARG_ENABLE(geforce,
     ]
   )
 
+AC_MSG_CHECKING(for Radeon emulation (experimental))
+AC_ARG_ENABLE(radeon,
+  AS_HELP_STRING([--enable-radeon], [enable experimental Radeon emulation (no)]),
+  [if test "$enableval" = yes; then
+    AC_MSG_RESULT(yes)
+    AC_DEFINE(BX_SUPPORT_RADEON, 1)
+    DISPLAY_OBJS="$DISPLAY_OBJS radeon.o"
+    DISPLAY_DLL_TARGETS="$DISPLAY_DLL_TARGETS bx_radeon.dll"
+   else
+    AC_MSG_RESULT(no)
+    AC_DEFINE(BX_SUPPORT_RADEON, 0)
+   fi],
+  [
+    AC_MSG_RESULT(no)
+    AC_DEFINE(BX_SUPPORT_RADEON, 0)
+    ]
+  )
+
 AC_MSG_CHECKING(for 3dfx Voodoo Graphics emulation)
 AC_ARG_ENABLE(voodoo,
   AS_HELP_STRING([--enable-voodoo], [enable 3dfx Voodoo Graphics emulation (no)]),
