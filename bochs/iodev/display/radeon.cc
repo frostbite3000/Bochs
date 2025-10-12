@@ -186,15 +186,15 @@ void bx_radeon_c::svga_init_members()
 
   // memory allocation.
   if (BX_RADEON_THIS s.memory == NULL)
-    BX_RADEON_THIS s.memory = new Bit8u[BX_RADEON_THIS s.memsize];
-  memset(BX_RADEON_THIS s.memory, 0x00, BX_RADEON_THIS s.memsize);
-  BX_RADEON_THIS disp_ptr = BX_RADEON_THIS s.memory;
+    BX_RADEON_THIS s.memory = new Bit8u[RADEON_VIDEO_MEMORY_BYTES];
 
-  BX_RADEON_THIS s.memsize = 128 * 1024 * 1024;
+  BX_RADEON_THIS s.memsize = RADEON_VIDEO_MEMORY_BYTES;
 
   BX_RADEON_THIS hidden_dac.lockindex = 5;
   BX_RADEON_THIS hidden_dac.data = 0;
 
+  memset(BX_RADEON_THIS s.memory, 0x00, RADEON_VIDEO_MEMORY_BYTES);
+  BX_RADEON_THIS disp_ptr = BX_RADEON_THIS s.memory;
   BX_RADEON_THIS memsize_mask = BX_RADEON_THIS s.memsize - 1;
 
   // VCLK defaults after reset
@@ -1216,7 +1216,9 @@ Bit32u bx_radeon_c::register_read(Bit32u address, unsigned io_len)
 {
   Bit32u value = 0xFFFFFFFF;
 
-  if (address == 0x0050)
+  if (address == 0x00F8)
+    value = RADEON_VIDEO_MEMORY_BYTES;
+  else if (address == 0x0050)
     value = BX_RADEON_THIS gencntl;
   else if (address == 0x0054)
     value = BX_RADEON_THIS extcntl;
@@ -1283,7 +1285,7 @@ void bx_radeon_c::svga_init_pcihandlers(void)
 
     BX_RADEON_THIS pci_conf[0x10] = 0x08;
     BX_RADEON_THIS pci_conf[0x14] = 0x01;
-    BX_RADEON_THIS init_bar_mem(0, BX_RADEON_THIS s.memsize, radeon_mem_read_handler,
+    BX_RADEON_THIS init_bar_mem(0, RADEON_VIDEO_MEMORY_BYTES, radeon_mem_read_handler,
                                  radeon_mem_write_handler);
     BX_RADEON_THIS init_bar_io(1, 256, read_handler, write_handler, radeon_iomask);
     BX_RADEON_THIS init_bar_mem(2, 0x10000, radeon_mem_read_handler,
