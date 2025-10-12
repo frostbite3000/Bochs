@@ -896,7 +896,7 @@ void bx_nvriva_c::svga_write(Bit32u address, Bit32u value, unsigned io_len)
   VGA_WRITE(address,value,io_len);
 }
 
-Bit8u alpha_wrap(int value)
+Bit8u nvriva_alpha_wrap(int value)
 {
   return -(value >> 8) ^ value;
 }
@@ -969,9 +969,9 @@ void bx_nvriva_c::draw_hardware_cursor(unsigned xc, unsigned yc, bx_svga_tileinf
         if (BX_NVRIVA_THIS hw_cursor.bpp32) {
           if (*(Bit32u*)cursor_ptr2) {
             Bit8u ica = 0xFF - cursor_ptr2[3];
-            Bit8u b = alpha_wrap(db * ica / 0xFF + cursor_ptr2[0]);
-            Bit8u g = alpha_wrap(dg * ica / 0xFF + cursor_ptr2[1]);
-            Bit8u r = alpha_wrap(dr * ica / 0xFF + cursor_ptr2[2]);
+            Bit8u b = nvriva_alpha_wrap(db * ica / 0xFF + cursor_ptr2[0]);
+            Bit8u g = nvriva_alpha_wrap(dg * ica / 0xFF + cursor_ptr2[1]);
+            Bit8u r = nvriva_alpha_wrap(dr * ica / 0xFF + cursor_ptr2[2]);
             color = b << 0 | g << 8 | r << 16;
           } else {
             color = db << 0 | dg << 8 | dr << 16;
@@ -2223,10 +2223,10 @@ void bx_nvriva_c::pixel_operation(gf_channel* ch, Bit32u op,
         Bit8u dr = *dstcolor >> 16;
         Bit8u da = *dstcolor >> 24;
         Bit8u isa = 0xFF - sa;
-        Bit8u b = alpha_wrap(db * isa / 0xFF + sb);
-        Bit8u g = alpha_wrap(dg * isa / 0xFF + sg);
-        Bit8u r = alpha_wrap(dr * isa / 0xFF + sr);
-        Bit8u a = alpha_wrap(da * isa / 0xFF + sa);
+        Bit8u b = nvriva_alpha_wrap(db * isa / 0xFF + sb);
+        Bit8u g = nvriva_alpha_wrap(dg * isa / 0xFF + sg);
+        Bit8u r = nvriva_alpha_wrap(dr * isa / 0xFF + sr);
+        Bit8u a = nvriva_alpha_wrap(da * isa / 0xFF + sa);
         *dstcolor = b << 0 | g << 8 | r << 16 | a << 24;
       }
     } else {
