@@ -2139,14 +2139,14 @@ void bx_nvriva_c::ramht_lookup(Bit32u handle, Bit32u chid, Bit32u* object, Bit8u
   BX_PANIC(("ramht_lookup failed for 0x%08x", handle));
 }
 
-Bit32u color_565_to_888(Bit16u value)
+Bit32u nvriva_color_565_to_888(Bit16u value)
 {
   Bit8u r, g, b;
   EXTRACT_565_TO_888(value, r, g, b);
   return r << 16 | g << 8 | b;
 }
 
-Bit16u color_888_to_565(Bit32u value)
+Bit16u nvriva_color_888_to_565(Bit32u value)
 {
   return (((value >> 19) & 0x1F) << 11) | (((value >> 10) & 0x3F) << 5) | ((value >> 3) & 0x1F);
 }
@@ -2321,8 +2321,8 @@ void bx_nvriva_c::gdi_blit(gf_channel* ch, Bit32u type)
   Bit32u bg_color = ch->gdi_bg_color;
   Bit32u fg_color = ch->gdi_fg_color;
   if (ch->s2d_color_bytes == 4 && ch->gdi_color_fmt != 3) {
-    bg_color = color_565_to_888(bg_color);
-    fg_color = color_565_to_888(fg_color);
+    bg_color = nvriva_color_565_to_888(bg_color);
+    fg_color = nvriva_color_565_to_888(fg_color);
   }
   Bit32u draw_offset = ch->s2d_ofs_dst +
     dy * pitch + dx * ch->s2d_color_bytes;
@@ -2385,12 +2385,12 @@ void bx_nvriva_c::ifc(gf_channel* ch, Bit32u word)
           ch->ifc_draw_offset, ch->ifc_x, ch->s2d_color_bytes);
         if (ch->ifc_color_bytes == 4 &&
             ch->s2d_color_bytes == 2)
-          dstcolor = color_565_to_888(dstcolor);
+          dstcolor = nvriva_color_565_to_888(dstcolor);
         pixel_operation(ch, ch->ifc_operation, &dstcolor, &srccolor,
           ch->ifc_color_bytes, ch->ifc_ofs_x + ch->ifc_x, ch->ifc_ofs_y + ch->ifc_y);
         if (ch->ifc_color_bytes == 4 &&
             ch->s2d_color_bytes == 2)
-          dstcolor = color_888_to_565(dstcolor);
+          dstcolor = nvriva_color_888_to_565(dstcolor);
         put_pixel(ch, ch->ifc_draw_offset, ch->ifc_x, dstcolor);
       }
     }
@@ -2441,11 +2441,11 @@ void bx_nvriva_c::iifc(gf_channel* ch)
           Bit32u srccolor = dma_read32(ch->iifc_palette,
             ch->iifc_palette_ofs + symbol * 4);
           if (ch->s2d_color_bytes == 2)
-            dstcolor = color_565_to_888(dstcolor);
+            dstcolor = nvriva_color_565_to_888(dstcolor);
           pixel_operation(ch, ch->iifc_operation,
             &dstcolor, &srccolor, 4, dx + x, dy + y);
           if (ch->s2d_color_bytes == 2)
-            dstcolor = color_888_to_565(dstcolor);
+            dstcolor = nvriva_color_888_to_565(dstcolor);
         } else if (ch->iifc_color_bytes == 2) {
           Bit32u srccolor = dma_read16(ch->iifc_palette,
             ch->iifc_palette_ofs + symbol * 2);
@@ -2499,12 +2499,12 @@ void bx_nvriva_c::sifc(gf_channel* ch)
       }
       if (ch->sifc_color_bytes == 4 &&
           ch->s2d_color_bytes == 2)
-        dstcolor = color_565_to_888(dstcolor);
+        dstcolor = nvriva_color_565_to_888(dstcolor);
       pixel_operation(ch, ch->sifc_operation,
         &dstcolor, &srccolor, ch->sifc_color_bytes, dx + x, dy + y);
       if (ch->sifc_color_bytes == 4 &&
           ch->s2d_color_bytes == 2)
-        dstcolor = color_888_to_565(dstcolor);
+        dstcolor = nvriva_color_888_to_565(dstcolor);
       put_pixel(ch, draw_offset, x, dstcolor);
       sx += dsdx;
     }
@@ -2587,7 +2587,7 @@ void bx_nvriva_c::m2mf(gf_channel* ch)
   }
 }
 
-Bit32u swizzle(Bit32u x, Bit32u y, Bit32u width, Bit32u height)
+Bit32u nvriva_swizzle(Bit32u x, Bit32u y, Bit32u width, Bit32u height)
 {
   bool xleft = true;
   bool yleft = true;
@@ -2637,7 +2637,7 @@ void bx_nvriva_c::tfc(gf_channel* ch)
             srccolor = tfc_words16[word_offset];
           }
           put_pixel_swzs(ch, ch->swzs_ofs +
-            swizzle(x + dx, y + dy, ch->swzs_width, ch->swzs_height) *
+            nvriva_swizzle(x + dx, y + dy, ch->swzs_width, ch->swzs_height) *
             ch->swzs_color_bytes, srccolor);
         }
         word_offset++;
@@ -2684,7 +2684,7 @@ void bx_nvriva_c::sifm(gf_channel* ch)
         for (Bit16u x = 0; x < dwidth; x++) {
           Bit32u srccolor = get_pixel(ch->sifm_src, src_offset, x, ch->sifm_color_bytes);
           put_pixel_swzs(ch, ch->swzs_ofs +
-            swizzle(x + dx, y + dy, ch->swzs_width, ch->swzs_height) *
+            nvriva_swizzle(x + dx, y + dy, ch->swzs_width, ch->swzs_height) *
             ch->swzs_color_bytes, srccolor);
         }
         src_offset += spitch;
@@ -2724,7 +2724,7 @@ void bx_nvriva_c::sifm(gf_channel* ch)
         for (Bit16u x = 0; x < dwidth; x++) {
           Bit32u srccolor = get_pixel(ch->sifm_src, src_offset, sx >> 20, ch->sifm_color_bytes);
           put_pixel_swzs(ch, ch->swzs_ofs +
-            swizzle(x + dx, y + dy, ch->swzs_width, ch->swzs_height) *
+            nvriva_swizzle(x + dx, y + dy, ch->swzs_width, ch->swzs_height) *
             ch->swzs_color_bytes, srccolor);
           sx += ch->sifm_dudx;
         }
