@@ -95,6 +95,9 @@ private:
   BX_RADEON_SMF Bit32u register_read(Bit32u address, unsigned io_len);
   BX_RADEON_SMF void  register_write(Bit32u address, Bit32u value, unsigned io_len);
 
+  static Bit32u read_handler(void *this_ptr, Bit32u address, unsigned io_len);
+  static void   write_handler(void *this_ptr, Bit32u address, Bit32u value, unsigned io_len);
+
   struct {
     Bit8u index;
     Bit8u reg[RADEON_CRTC_MAX+1];
@@ -198,8 +201,8 @@ private:
 #if BX_SUPPORT_PCI
   BX_RADEON_SMF void svga_init_pcihandlers(void);
 
-  BX_RADEON_SMF bool RADEON_mem_read_handler(bx_phy_address addr, unsigned len, void *data, void *param);
-  BX_RADEON_SMF bool RADEON_mem_write_handler(bx_phy_address addr, unsigned len, void *data, void *param);
+  BX_RADEON_SMF bool radeon_mem_read_handler(bx_phy_address addr, unsigned len, void *data, void *param);
+  BX_RADEON_SMF bool radeon_mem_write_handler(bx_phy_address addr, unsigned len, void *data, void *param);
 #endif
 };
 

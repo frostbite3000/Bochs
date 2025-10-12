@@ -150,7 +150,7 @@ bool bx_radeon_c::init_vga_extension(void)
   DEV_register_ioread_handler(this, svga_read_handler, 0x03C3, "radeon", 3);
   DEV_register_iowrite_handler(this, svga_write_handler, 0x03D0, "radeon", 7);
   DEV_register_iowrite_handler(this, svga_write_handler, 0x03D2, "radeon", 2);
-  BX_RADEON_THIS init_iohandlers(svga_read_handler, svga_write_handler);
+  BX_RADEON_THIS init_iohandlers(svga_read_handler, svga_write_handler, "radeon");
   BX_RADEON_THIS svga_init_members();
   BX_RADEON_THIS svga_init_pcihandlers();
   BX_INFO(("%s initialized", model));
@@ -401,7 +401,7 @@ void bx_radeon_c::mem_write(bx_phy_address addr, Bit8u value)
   if ((addr >= BX_RADEON_THIS pci_bar[2].addr) &&
       (addr < (BX_RADEON_THIS pci_bar[2].addr + 0x10000))) {
     Bit32u offset = addr & (0x10000 - 1);
-    Bit32u value32 = register_read(offset & ~3);
+    Bit32u value32 = register_read(offset & ~3, io_len);
     int shift = (offset & 3) * 8;
     Bit32u mask = ~(0xFF << shift);
     value32 = (value32 & mask) | (value << shift);
@@ -723,8 +723,8 @@ void bx_radeon_c::update(void)
           break;
         }
 
-      Bit32u iHeight = BX_RADEON_THIS hdisp; 
-      Bit64u iWidth = BX_RADEON_THIS vdisp;
+      Bit32u iHeight; 
+      Bit64u iWidth;
       determine_screen_dimensions(&iHeight, &iWidth);
 
       BX_INFO(("switched to %u x %u x %u", iWidth, iHeight, iBpp));
@@ -1264,7 +1264,7 @@ void bx_radeon_c::register_write(Bit32u address, Bit32u value, unsigned io_len)
     BX_RADEON_THIS pci_write_handler(address - 0x0018, value, 4);
   }
   else if (address >= 0x0058 && address < 0x007c) {
-    BX_RADEON_THIS ramdac[(address - 0x) / 4] = value;
+    BX_RADEON_THIS ramdac[(address - 0x0058) / 4] = value;
   }
 }
 
