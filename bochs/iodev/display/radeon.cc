@@ -229,10 +229,10 @@ void bx_radeon_c::register_state(void)
   new bx_shadow_data_c(crtc, "reg", BX_RADEON_THIS crtc.reg, RADEON_CRTC_MAX + 1, 1);
   bx_list_c *sequ = new bx_list_c(list, "sequencer");
   new bx_shadow_num_c(sequ, "index", &BX_RADEON_THIS sequencer.index, BASE_HEX);
-  new bx_shadow_data_c(sequ, "reg", BX_RADEON_THIS sequencer.reg, CIRRUS_SEQUENCER_MAX + 1, 1);
+  new bx_shadow_data_c(sequ, "reg", BX_RADEON_THIS sequencer.reg, RADEON_SEQUENCER_MAX + 1, 1);
   bx_list_c *ctrl = new bx_list_c(list, "control");
   new bx_shadow_num_c(ctrl, "index", &BX_RADEON_THIS control.index, BASE_HEX);
-  new bx_shadow_data_c(ctrl, "reg", BX_RADEON_THIS control.reg, CIRRUS_CONTROL_MAX + 1, 1);
+  new bx_shadow_data_c(ctrl, "reg", BX_RADEON_THIS control.reg, RADEON_CONTROL_MAX + 1, 1);
   new bx_shadow_num_c(ctrl, "shadow_reg0", &BX_RADEON_THIS control.shadow_reg0, BASE_HEX);
   new bx_shadow_num_c(ctrl, "shadow_reg1", &BX_RADEON_THIS control.shadow_reg1, BASE_HEX);
   bx_list_c *hdac = new bx_list_c(list, "hidden_dac");
@@ -439,7 +439,7 @@ void bx_radeon_c::get_text_snapshot(Bit8u **text_snapshot,
 
 Bit32u bx_radeon_c::svga_read_handler(void *this_ptr, Bit32u address, unsigned io_len)
 {
-#if !BX_USE_CIRRUS_SMF
+#if !BX_USE_RADEON_SMF
   bx_radeon_c *class_ptr = (bx_radeon_c *) this_ptr;
 
   return class_ptr->svga_read(address, io_len);
@@ -449,7 +449,7 @@ Bit32u bx_radeon_c::svga_read(Bit32u address, unsigned io_len)
 {
 #else
   UNUSED(this_ptr);
-#endif // !BX_USE_CIRRUS_SMF
+#endif // !BX_USE_RADEON_SMF
 
   if ((io_len == 2) && ((address & 1) == 0)) {
     Bit32u value;
@@ -500,7 +500,7 @@ Bit32u bx_radeon_c::svga_read(Bit32u address, unsigned io_len)
 
 void bx_radeon_c::svga_write_handler(void *this_ptr, Bit32u address, Bit32u value, unsigned io_len)
 {
-#if !BX_USE_CIRRUS_SMF
+#if !BX_USE_RADEON_SMF
   bx_radeon_c *class_ptr = (bx_radeon_c *) this_ptr;
   class_ptr->svga_write(address, value, io_len);
 }
@@ -509,7 +509,7 @@ void bx_radeon_c::svga_write(Bit32u address, Bit32u value, unsigned io_len)
 {
 #else
   UNUSED(this_ptr);
-#endif // !BX_USE_CIRRUS_SMF
+#endif // !BX_USE_RADEON_SMF
 
   if ((io_len == 2) && ((address & 1) == 0)) {
     SVGA_WRITE(address,value & 0xff,1);
@@ -596,7 +596,7 @@ void bx_radeon_c::draw_hardware_cursor(unsigned xc, unsigned yc, bx_svga_tileinf
     if (BX_RADEON_THIS svga_dispbpp == 4) {
       hwc_offset = 0x200000 - 16384; // VGA
     } else {
-      hwc_offset = BX_RADEON_THIS memsize_mask - 16383; // Cirrus
+      hwc_offset = BX_RADEON_THIS memsize_mask - 16383; // RADEON
     }
     plane0_ptr = BX_RADEON_THIS s.memory + hwc_offset;
 

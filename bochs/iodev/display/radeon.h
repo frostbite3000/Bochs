@@ -50,11 +50,11 @@
 #define RADEON_VIDEO_MEMORY_KB    (RADEON_VIDEO_MEMORY_MB * 1024)
 #define RADEON_VIDEO_MEMORY_BYTES (RADEON_VIDEO_MEMORY_KB * 1024)
 
-class bx_RADEON_c : public bx_vgacore_c
+class bx_radeon_c : public bx_vgacore_c
 {
 public:
-  bx_RADEON_c();
-  virtual ~bx_RADEON_c();
+  bx_radeon_c();
+  virtual ~bx_radeon_c();
 
   virtual bool init_vga_extension(void);
   virtual void reset(unsigned type);
