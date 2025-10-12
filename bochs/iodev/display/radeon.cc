@@ -723,8 +723,8 @@ void bx_radeon_c::update(void)
           break;
         }
 
-      Bit32u iHeight; 
-      Bit64u iWidth;
+      Bit32u iHeight = hdisp; 
+      Bit32u iWidth = vdisp;
       determine_screen_dimensions(&iHeight, &iWidth);
 
       BX_INFO(("switched to %u x %u x %u", iWidth, iHeight, iBpp));

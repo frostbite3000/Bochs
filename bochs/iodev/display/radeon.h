@@ -128,8 +128,8 @@ private:
   Bit32u clock_mul;
   Bit64u time;
 
-  Bit64u hdisp;
-  Bit64u vdisp;
+  Bit32u hdisp;
+  Bit32u vdisp;
   Bit64u gencntl;
   Bit64u extcntl;
   Bit64u dpdatatype;
