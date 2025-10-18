@@ -865,6 +865,15 @@ void bx_pci_i850agp_bridge_c::reset(unsigned type)
   pci_conf[0x04] = 0x00;
   pci_conf[0x05] = 0x00;
   
+  // Primary Bus Number - this bridge is on bus 0
+  pci_conf[0x18] = 0x00;
+  
+  // Secondary Bus Number - AGP bus number (bus 1)
+  pci_conf[0x19] = 0x01;
+  
+  // Subordinate Bus Number - highest bus number behind this bridge
+  pci_conf[0x1a] = 0x01;
+  
   // Bridge Control - Bus Master, Memory, I/O decode disabled
   pci_conf[0x1c] = 0xf0;  // I/O Base and Limit
   pci_conf[0x1f] = 0x02;  // Secondary Status
@@ -901,6 +910,8 @@ void bx_pci_i850agp_bridge_c::debug_dump(int argc, char **argv)
 {
   dbg_printf("i850 MCH PCI-to-AGP Bridge (Device 1, Function 0)\n");
   dbg_printf("Device ID: 0x%04x\n", (pci_conf[0x03] << 8) | pci_conf[0x02]);
+  dbg_printf("Bus Numbers: Primary=0x%02x, Secondary=0x%02x, Subordinate=0x%02x\n",
+    pci_conf[0x18], pci_conf[0x19], pci_conf[0x1a]);
   dbg_printf("I/O Base: 0x%02x, Limit: 0x%02x\n", pci_conf[0x1c], pci_conf[0x1d]);
   dbg_printf("Memory Base: 0x%02x%02x, Limit: 0x%02x%02x\n",
     pci_conf[0x21], pci_conf[0x20], pci_conf[0x23], pci_conf[0x22]);
