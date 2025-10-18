@@ -857,16 +857,6 @@ void bx_pci_i850agp_bridge_c::init(void)
   
   // Secondary Status Register - secondary bus has 0xA0 capability at offset 0x1E
   pci_conf[0x1e] = 0xa0;
-  
-  // Critical: Set bus numbers immediately so devices can register on bus 1
-  // Primary Bus Number - this bridge is on bus 0
-  pci_conf[0x18] = 0x00;
-  
-  // Secondary Bus Number - AGP bus number (bus 1)
-  pci_conf[0x19] = 0x01;
-  
-  // Subordinate Bus Number - highest bus number behind this bridge
-  pci_conf[0x1a] = 0x01;
 }
 
 void bx_pci_i850agp_bridge_c::reset(unsigned type)
@@ -874,15 +864,6 @@ void bx_pci_i850agp_bridge_c::reset(unsigned type)
   // PCI Command - Master/Memory/IO disabled by default
   pci_conf[0x04] = 0x00;
   pci_conf[0x05] = 0x00;
-  
-  // Primary Bus Number - this bridge is on bus 0
-  pci_conf[0x18] = 0x00;
-  
-  // Secondary Bus Number - AGP bus number (bus 1)
-  pci_conf[0x19] = 0x01;
-  
-  // Subordinate Bus Number - highest bus number behind this bridge
-  pci_conf[0x1a] = 0x01;
   
   // Bridge Control - Bus Master, Memory, I/O decode disabled
   pci_conf[0x1c] = 0xf0;  // I/O Base and Limit
@@ -920,8 +901,6 @@ void bx_pci_i850agp_bridge_c::debug_dump(int argc, char **argv)
 {
   dbg_printf("i850 MCH PCI-to-AGP Bridge (Device 1, Function 0)\n");
   dbg_printf("Device ID: 0x%04x\n", (pci_conf[0x03] << 8) | pci_conf[0x02]);
-  dbg_printf("Bus Numbers: Primary=0x%02x, Secondary=0x%02x, Subordinate=0x%02x\n",
-    pci_conf[0x18], pci_conf[0x19], pci_conf[0x1a]);
   dbg_printf("I/O Base: 0x%02x, Limit: 0x%02x\n", pci_conf[0x1c], pci_conf[0x1d]);
   dbg_printf("Memory Base: 0x%02x%02x, Limit: 0x%02x%02x\n",
     pci_conf[0x21], pci_conf[0x20], pci_conf[0x23], pci_conf[0x22]);
@@ -976,6 +955,7 @@ void bx_pci_i850agp_bridge_c::pci_write_handler(Bit8u address, Bit32u value, uns
         
       case 0x19: // SBUSN - Secondary Bus Number
       case 0x1a: // SUBUSN - Subordinate Bus Number
+      case 0x18: // PBUSN - Primary Bus Number (allow writes for compatibility)
       case 0x21: // MBASE hi - Memory Base Upper
       case 0x23: // MLIMIT hi - Memory Limit Upper
       case 0x25: // PMBASE hi - Prefetchable Memory Base Upper
@@ -985,7 +965,6 @@ void bx_pci_i850agp_bridge_c::pci_write_handler(Bit8u address, Bit32u value, uns
         
       case 0x06: // PCISTS1 - PCI Status (read-only)
       case 0x07: // PCI Status upper byte (read-only)
-      case 0x18: // PBUSN - Primary Bus Number (read-only)
       case 0x1e: // SSTS lo - Secondary Status lower byte (read-only)
       default:
         value8 = oldval;
