@@ -857,6 +857,16 @@ void bx_pci_i850agp_bridge_c::init(void)
   
   // Secondary Status Register - secondary bus has 0xA0 capability at offset 0x1E
   pci_conf[0x1e] = 0xa0;
+  
+  // Critical: Set bus numbers immediately so devices can register on bus 1
+  // Primary Bus Number - this bridge is on bus 0
+  pci_conf[0x18] = 0x00;
+  
+  // Secondary Bus Number - AGP bus number (bus 1)
+  pci_conf[0x19] = 0x01;
+  
+  // Subordinate Bus Number - highest bus number behind this bridge
+  pci_conf[0x1a] = 0x01;
 }
 
 void bx_pci_i850agp_bridge_c::reset(unsigned type)
