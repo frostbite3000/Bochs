@@ -162,6 +162,10 @@ void bx_usb_uhci_c::init(void)
   } else if (SIM->get_param_enum(BXPN_PCI_CHIPSET)->get() == BX_PCI_CHIPSET_I440BX) {
     devfunc = BX_PCI_DEVICE(7, 2);
     devid = 0x7112;
+  } else if (SIM->get_param_enum(BXPN_PCI_CHIPSET)->get() == BX_PCI_CHIPSET_I850) {
+    // ICH2 USB Controller #1
+    devfunc = BX_PCI_DEVICE(31, 2);
+    devid = 0x2442;
   } else {
     devfunc = 0x00;
     devid = 0x7020;

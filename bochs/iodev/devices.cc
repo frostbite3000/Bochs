@@ -193,6 +193,8 @@ void bx_devices_c::init(BX_MEM_C *newmem)
       pci.advopts = (BX_PCI_ADVOPT_NOHPET | BX_PCI_ADVOPT_NOACPI | BX_PCI_ADVOPT_NOAGP);
     } else if (chipset == BX_PCI_CHIPSET_I440FX) {
       pci.advopts = BX_PCI_ADVOPT_NOAGP;
+    } else if (chipset == BX_PCI_CHIPSET_I850) {
+      pci.advopts = BX_PCI_ADVOPT_NOAGP;
     } else {
       pci.advopts = 0;
     }
@@ -229,8 +231,9 @@ void bx_devices_c::init(BX_MEM_C *newmem)
     PLUG_load_plugin(pci2isa, PLUGTYPE_CORE);
 #if BX_SUPPORT_PCIUSB
     if ((chipset == BX_PCI_CHIPSET_I440FX) ||
-        (chipset == BX_PCI_CHIPSET_I440BX)) {
-      // UHCI is a part of the PIIX3/PIIX4, so load / enable it
+        (chipset == BX_PCI_CHIPSET_I440BX) ||
+        (chipset == BX_PCI_CHIPSET_I850)) {
+      // UHCI is a part of the PIIX3/PIIX4/ICH2, so load / enable it
       if (!PLUG_device_present("usb_uhci")) {
         SIM->opt_plugin_ctrl("usb_uhci", 1);
       }
@@ -298,7 +301,7 @@ void bx_devices_c::init(BX_MEM_C *newmem)
       pci.slot_used[i] = false;  // no device connected
     }
 
-    if (chipset == BX_PCI_CHIPSET_I440BX) {
+    if ((chipset == BX_PCI_CHIPSET_I440BX) || (chipset == BX_PCI_CHIPSET_I850)) {
       pci.map_slot_to_dev = slot_to_dev[2];
     } else if ((pci.advopts & BX_PCI_ADVOPT_ALTDEVMAP) != 0) {
       pci.map_slot_to_dev = slot_to_dev[1];

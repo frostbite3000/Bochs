@@ -84,11 +84,18 @@ void bx_pci_ide_c::init(void)
   BX_PIDE_THIS s.chipset = SIM->get_param_enum(BXPN_PCI_CHIPSET)->get();
   if (BX_PIDE_THIS s.chipset == BX_PCI_CHIPSET_I440BX) {
     devfunc = BX_PCI_DEVICE(7, 1);
+  } else if (BX_PIDE_THIS s.chipset == BX_PCI_CHIPSET_I850) {
+    devfunc = BX_PCI_DEVICE(31, 1);
   } else {
     devfunc = BX_PCI_DEVICE(1, 1);
   }
-  DEV_register_pci_handlers(this, &devfunc,
-      BX_PLUGIN_PCI_IDE, "PIIX3 PCI IDE controller");
+  if (BX_PIDE_THIS s.chipset == BX_PCI_CHIPSET_I850) {
+    DEV_register_pci_handlers(this, &devfunc,
+        BX_PLUGIN_PCI_IDE, "ICH2 PCI IDE controller");
+  } else {
+    DEV_register_pci_handlers(this, &devfunc,
+        BX_PLUGIN_PCI_IDE, "PIIX3 PCI IDE controller");
+  }
 
   // register BM-DMA timer
   for (i=0; i<2; i++) {
@@ -107,6 +114,9 @@ void bx_pci_ide_c::init(void)
     init_pci_conf(0x8086, 0x1230, 0x00, 0x010180, 0x00, 0);
   } else if (BX_PIDE_THIS s.chipset == BX_PCI_CHIPSET_I440BX) {
     init_pci_conf(0x8086, 0x7111, 0x00, 0x010180, 0x00, 0);
+  } else if (BX_PIDE_THIS s.chipset == BX_PCI_CHIPSET_I850) {
+    // ICH2 IDE Controller
+    init_pci_conf(0x8086, 0x244B, 0x02, 0x010180, 0x00, 0);
   } else {
     init_pci_conf(0x8086, 0x7010, 0x00, 0x010180, 0x00, 0);
   }

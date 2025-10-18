@@ -132,6 +132,8 @@ void bx_acpi_ctrl_c::init(void)
   Bit8u chipset = SIM->get_param_enum(BXPN_PCI_CHIPSET)->get();
   if (chipset == BX_PCI_CHIPSET_I440BX) {
     BX_ACPI_THIS s.devfunc = BX_PCI_DEVICE(7, 3);
+  } else if (chipset == BX_PCI_CHIPSET_I850) {
+    BX_ACPI_THIS s.devfunc = BX_PCI_DEVICE(31, 3);
   } else {
     BX_ACPI_THIS s.devfunc = BX_PCI_DEVICE(1, 3);
   }

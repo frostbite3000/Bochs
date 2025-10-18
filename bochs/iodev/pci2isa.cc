@@ -22,6 +22,7 @@
 // i430FX - PIIX
 // i440FX - PIIX3
 // i440BX - PIIX4
+// i850   - ICH2
 
 // Define BX_PLUGGABLE in files that can be compiled into plugins.  For
 // platforms that require a special tag on exported symbols, BX_PLUGGABLE
@@ -74,11 +75,18 @@ void bx_piix3_c::init(void)
   BX_P2I_THIS s.chipset = SIM->get_param_enum(BXPN_PCI_CHIPSET)->get();
   if (BX_P2I_THIS s.chipset == BX_PCI_CHIPSET_I440BX) {
     BX_P2I_THIS s.devfunc = BX_PCI_DEVICE(7, 0);
+  } else if (BX_P2I_THIS s.chipset == BX_PCI_CHIPSET_I850) {
+    BX_P2I_THIS s.devfunc = BX_PCI_DEVICE(31, 0);
   } else {
     BX_P2I_THIS s.devfunc = BX_PCI_DEVICE(1, 0);
   }
-  DEV_register_pci_handlers(this, &BX_P2I_THIS s.devfunc, BX_PLUGIN_PCI2ISA,
-      "PIIX3 PCI-to-ISA bridge");
+  if (BX_P2I_THIS s.chipset == BX_PCI_CHIPSET_I850) {
+    DEV_register_pci_handlers(this, &BX_P2I_THIS s.devfunc, BX_PLUGIN_PCI2ISA,
+        "ICH2 PCI-to-ISA bridge");
+  } else {
+    DEV_register_pci_handlers(this, &BX_P2I_THIS s.devfunc, BX_PLUGIN_PCI2ISA,
+        "PIIX3 PCI-to-ISA bridge");
+  }
 
   DEV_register_iowrite_handler(this, write_handler, 0x00B2, "PIIX3 PCI-to-ISA bridge", 3);
   DEV_register_iowrite_handler(this, write_handler, 0x00B3, "PIIX3 PCI-to-ISA bridge", 1);
@@ -102,6 +110,9 @@ void bx_piix3_c::init(void)
     init_pci_conf(0x8086, 0x122e, 0x01, 0x060100, 0x80, 0);
   } else if (BX_P2I_THIS s.chipset == BX_PCI_CHIPSET_I440BX) {
     init_pci_conf(0x8086, 0x7110, 0x00, 0x060100, 0x80, 0);
+  } else if (BX_P2I_THIS s.chipset == BX_PCI_CHIPSET_I850) {
+    // ICH2 LPC Interface Bridge
+    init_pci_conf(0x8086, 0x2440, 0x02, 0x060100, 0x00, 0);
   } else {
     init_pci_conf(0x8086, 0x7000, 0x00, 0x060100, 0x80, 0);
   }
@@ -189,6 +200,13 @@ void bx_piix3_c::pci_set_irq(Bit8u devfunc, unsigned line, bool level)
   int slot = DEV_pci_get_slot_from_dev(device);
   if (BX_P2I_THIS s.chipset == BX_PCI_CHIPSET_I440BX) {
     if ((device == 7) || (device == 0)) {
+      pirq = line - 1;
+    } else {
+      pirq = (slot + line - 2) & 3;
+    }
+  } else if (BX_P2I_THIS s.chipset == BX_PCI_CHIPSET_I850) {
+    // ICH2 uses device 31 for LPC bridge
+    if ((device == 31) || (device == 0)) {
       pirq = line - 1;
     } else {
       pirq = (slot + line - 2) & 3;
@@ -396,19 +414,25 @@ void bx_piix3_c::pci_write_handler(Bit8u address, Bit32u value, unsigned io_len)
         }
         break;
       case 0x6a:
-        if (BX_P2I_THIS s.chipset != BX_PCI_CHIPSET_I430FX) {
+        if ((BX_P2I_THIS s.chipset != BX_PCI_CHIPSET_I430FX) &&
+            (BX_P2I_THIS s.chipset != BX_PCI_CHIPSET_I850)) {
           // TODO: bit #4: enable / disable USB function at boot time
           BX_P2I_THIS pci_conf[address+i] = (value8 & 0xd7);
+        } else if (BX_P2I_THIS s.chipset == BX_PCI_CHIPSET_I850) {
+          BX_P2I_THIS pci_conf[address+i] = value8;
         }
         break;
       case 0x80:
-        if (BX_P2I_THIS s.chipset != BX_PCI_CHIPSET_I430FX) {
+        if ((BX_P2I_THIS s.chipset != BX_PCI_CHIPSET_I430FX) &&
+            (BX_P2I_THIS s.chipset != BX_PCI_CHIPSET_I850)) {
           BX_P2I_THIS pci_conf[address+i] = (value8 & 0x7f);
 #if BX_SUPPORT_APIC
           if (DEV_ioapic_present()) {
             DEV_ioapic_set_enabled(BX_P2I_THIS pci_conf[0x4f] & 0x01, (value8 & 0x3f) << 10);
           }
 #endif
+        } else if (BX_P2I_THIS s.chipset == BX_PCI_CHIPSET_I850) {
+          BX_P2I_THIS pci_conf[address+i] = value8;
         }
         break;
       default:
@@ -424,7 +448,11 @@ void bx_piix3_c::debug_dump(int argc, char **argv)
 {
   int arg, i, j, r;
 
-  dbg_printf("PIIX3 ISA bridge\n\n");
+  if (BX_P2I_THIS s.chipset == BX_PCI_CHIPSET_I850) {
+    dbg_printf("ICH2 LPC Interface Bridge\n\n");
+  } else {
+    dbg_printf("PIIX3 ISA bridge\n\n");
+  }
   dbg_printf("ELCR1 = 0x%02x\n", BX_P2I_THIS s.elcr1);
   dbg_printf("ELCR2 = 0x%02x\n", BX_P2I_THIS s.elcr2);
   if (argc == 0) {

@@ -38,7 +38,7 @@
 
 #define LOG_THIS thePciBridge->
 
-const char csname[3][20] = {"i430FX TSC", "i440FX PMC", "i440BX Host bridge"};
+const char csname[4][20] = {"i430FX TSC", "i440FX PMC", "i440BX Host bridge", "i850 MCH"};
 
 bx_pci_bridge_c *thePciBridge = NULL;
 
@@ -112,6 +112,16 @@ void bx_pci_bridge_c::init(void)
     BX_PCI_THIS pci_conf[0xf3] = 0xf8;
     BX_PCI_THIS pci_conf[0xf8] = 0x20;
     BX_PCI_THIS pci_conf[0xf9] = 0x0f;
+  } else if (BX_PCI_THIS chipset == BX_PCI_CHIPSET_I850) {
+    // i850 Memory Controller Hub (MCH)
+    init_pci_conf(0x8086, 0x2530, 0x02, 0x060000, 0x00, 0);
+    BX_PCI_THIS pci_conf[0x06] = 0x90;
+    BX_PCI_THIS pci_conf[0x51] = 0x80;
+    BX_PCI_THIS pci_conf[0x53] = 0x80;
+    // Memory timing and configuration registers
+    BX_PCI_THIS pci_conf[0x50] = 0x00;
+    BX_PCI_THIS pci_conf[0x52] = 0x00;
+    BX_PCI_THIS pci_conf[0x54] = 0x00;
   } else { // i440FX
     init_pci_conf(0x8086, 0x1237, 0x00, 0x060000, 0x00, 0);
   }
@@ -168,6 +178,27 @@ void bx_pci_bridge_c::init(void)
         BX_PCI_THIS DRBA[i] = 0x20;
       }
     }
+  } else if (BX_PCI_THIS chipset == BX_PCI_CHIPSET_I850) {
+    // i850 uses RDRAM with different memory configuration
+    if (ramsize > 2048) ramsize = 2048;
+    Bit8u drbval = 0;
+    unsigned row = 0;
+    // i850 supports up to 2GB of RDRAM in 8 rows
+    const Bit8u type[3] = {256, 128, 64};
+    unsigned ti = 0;
+    while ((ramsize > 0) && (row < 8) && (ti < 3)) {
+      unsigned mc = ramsize / type[ti];
+      ramsize = ramsize % type[ti];
+      for (i = 0; i < mc; i++) {
+        drbval += (type[ti] >> 3);
+        BX_PCI_THIS DRBA[row++] = drbval;
+        if (row == 8) break;
+      }
+      ti++;
+    }
+    while (row < 8) {
+      BX_PCI_THIS DRBA[row++] = drbval;
+    }
   } else { // i440FX
     const Bit8u type[3] = {128, 32, 8};
     if (ramsize > 1024) ramsize = 1024;
@@ -222,6 +253,10 @@ bx_pci_bridge_c::reset(unsigned type)
     if (BX_PCI_THIS vbridge != NULL) {
       BX_PCI_THIS vbridge->reset(type);
     }
+  } else if (BX_PCI_THIS chipset == BX_PCI_CHIPSET_I850) {
+    BX_PCI_THIS pci_conf[0x06] = 0x90;
+    BX_PCI_THIS pci_conf[0x51] = 0x80;
+    BX_PCI_THIS pci_conf[0x58] = 0x00;
   } else { // i440FX
     BX_PCI_THIS pci_conf[0x06] = 0x80;
     BX_PCI_THIS pci_conf[0x51] = 0x01;
@@ -314,6 +349,8 @@ void bx_pci_bridge_c::pci_write_handler(Bit8u address, Bit32u value, unsigned io
           BX_PCI_THIS pci_conf[address+i] = (value8 & 0xef);
         } else if (BX_PCI_THIS chipset == BX_PCI_CHIPSET_I440BX) {
           BX_PCI_THIS pci_conf[address+i] = (value8 & 0xec);
+        } else if (BX_PCI_THIS chipset == BX_PCI_CHIPSET_I850) {
+          BX_PCI_THIS pci_conf[address+i] = value8;
         } else {
           BX_PCI_THIS pci_conf[address+i] = (value8 & 0x70);
         }
@@ -321,6 +358,8 @@ void bx_pci_bridge_c::pci_write_handler(Bit8u address, Bit32u value, unsigned io
       case 0x51:
         if (BX_PCI_THIS chipset == BX_PCI_CHIPSET_I440BX) {
           BX_PCI_THIS pci_conf[address+i] = (value8 & 0x8f) | 0x20;
+        } else if (BX_PCI_THIS chipset == BX_PCI_CHIPSET_I850) {
+          BX_PCI_THIS pci_conf[address+i] = value8 | 0x80;
         } else if (BX_PCI_THIS chipset != BX_PCI_CHIPSET_I430FX) {
           BX_PCI_THIS pci_conf[address+i] = (value8 & 0x80) | 0x01;
         }
@@ -368,13 +407,19 @@ void bx_pci_bridge_c::pci_write_handler(Bit8u address, Bit32u value, unsigned io
         }
         break;
       case 0x72:
-        smram_control(value8); // SMRAM control register
+        if (BX_PCI_THIS chipset != BX_PCI_CHIPSET_I850) {
+          smram_control(value8); // SMRAM control register
+        } else {
+          BX_PCI_THIS pci_conf[address+i] = value8;
+        }
         break;
       case 0x73:
         if (BX_PCI_THIS chipset == BX_PCI_CHIPSET_I440BX) {
           // TODO
           BX_ERROR(("Extended SMRAM control register not spported yet"));
           BX_PCI_THIS pci_conf[address+i] = (value8 | 0x38);
+        } else if (BX_PCI_THIS chipset == BX_PCI_CHIPSET_I850) {
+          BX_PCI_THIS pci_conf[address+i] = value8;
         }
         break;
       case 0x7a:
@@ -566,6 +611,8 @@ void bx_pci_bridge_c::debug_dump(int argc, char **argv)
     dbg_printf("i430FX TSC/TDP");
   } else if (BX_PCI_THIS chipset == BX_PCI_CHIPSET_I440BX) {
     dbg_printf("i440BX Host bridge");
+  } else if (BX_PCI_THIS chipset == BX_PCI_CHIPSET_I850) {
+    dbg_printf("i850 MCH");
   } else {
     dbg_printf("i440FX PMC/DBX");
   }
