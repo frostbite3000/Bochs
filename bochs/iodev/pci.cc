@@ -184,7 +184,7 @@ void bx_pci_bridge_c::init(void)
     Bit8u drbval = 0;
     unsigned row = 0;
     // i850 supports up to 2GB of RDRAM in 8 rows
-    const Bit8u type[3] = {256, 128, 64};
+    const unsigned int type[3] = {256, 128, 64};
     unsigned ti = 0;
     while ((ramsize > 0) && (row < 8) && (ti < 3)) {
       unsigned mc = ramsize / type[ti];
