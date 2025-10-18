@@ -59,12 +59,16 @@ bx_pci_bridge_c::bx_pci_bridge_c()
 {
   put("PCI");
   vbridge = NULL;
+  i850_agp_bridge = NULL;
 }
 
 bx_pci_bridge_c::~bx_pci_bridge_c()
 {
   if (vbridge != NULL) {
     delete vbridge;
+  }
+  if (i850_agp_bridge != NULL) {
+    delete i850_agp_bridge;
   }
   SIM->get_bochs_root()->remove("pci_bridge");
   BX_DEBUG(("Exit"));
@@ -113,10 +117,29 @@ void bx_pci_bridge_c::init(void)
     BX_PCI_THIS pci_conf[0xf8] = 0x20;
     BX_PCI_THIS pci_conf[0xf9] = 0x0f;
   } else if (BX_PCI_THIS chipset == BX_PCI_CHIPSET_I850) {
-    // i850 Memory Controller Hub (MCH)
-    init_pci_conf(0x8086, 0x2530, 0x02, 0x060000, 0x00, 0);
-    BX_PCI_THIS pci_conf[0x06] = 0x90;
-    BX_PCI_THIS pci_conf[0x51] = 0x80;
+    // i850 Memory Controller Hub (MCH) with optional AGP support
+    if (DEV_agp_present()) {
+      // i850 MCH with AGP support
+      init_pci_conf(0x8086, 0x2530, 0x02, 0x060000, 0x00, 0);
+      BX_PCI_THIS pci_conf[0x06] = 0x90;
+      BX_PCI_THIS pci_conf[0x10] = 0x08;  // AGP BAR at 0xF0000000
+      init_bar_mem(0, 0xf0000000, agp_ap_read_handler, agp_ap_write_handler);
+      BX_PCI_THIS pci_conf[0x34] = 0xa0;  // Capabilities pointer
+      // AGP capabilities at offset 0xa0
+      BX_PCI_THIS pci_conf[0xa0] = 0x02;  // Capability ID (AGP)
+      BX_PCI_THIS pci_conf[0xa2] = 0x10;  // AGP revision 1.0
+      BX_PCI_THIS pci_conf[0xa4] = 0x03;  // Status register
+      BX_PCI_THIS pci_conf[0xa5] = 0x02;  // Status register
+      BX_PCI_THIS pci_conf[0xa7] = 0x1f;  // Command register
+      BX_PCI_THIS i850_agp_bridge = new bx_pci_i850agp_bridge_c();
+      BX_PCI_THIS i850_agp_bridge->init();
+      BX_PCI_THIS pci_conf[0x51] = 0x80;
+    } else {
+      // i850 MCH without AGP support
+      init_pci_conf(0x8086, 0x2530, 0x02, 0x060000, 0x00, 0);
+      BX_PCI_THIS pci_conf[0x06] = 0x90;
+      BX_PCI_THIS pci_conf[0x51] = 0x80;
+    }
     BX_PCI_THIS pci_conf[0x53] = 0x80;
     // Memory timing and configuration registers
     BX_PCI_THIS pci_conf[0x50] = 0x00;
@@ -257,6 +280,9 @@ bx_pci_bridge_c::reset(unsigned type)
     BX_PCI_THIS pci_conf[0x06] = 0x90;
     BX_PCI_THIS pci_conf[0x51] = 0x80;
     BX_PCI_THIS pci_conf[0x58] = 0x00;
+    if (BX_PCI_THIS i850_agp_bridge != NULL) {
+      BX_PCI_THIS i850_agp_bridge->reset(type);
+    }
   } else { // i440FX
     BX_PCI_THIS pci_conf[0x06] = 0x80;
     BX_PCI_THIS pci_conf[0x51] = 0x01;
@@ -286,6 +312,9 @@ void bx_pci_bridge_c::register_state(void)
   if (BX_PCI_THIS vbridge != NULL) {
     BX_PCI_THIS vbridge->register_state();
   }
+  if (BX_PCI_THIS i850_agp_bridge != NULL) {
+    BX_PCI_THIS i850_agp_bridge->register_state();
+  }
 }
 
 void bx_pci_bridge_c::after_restore_state(void)
@@ -293,6 +322,9 @@ void bx_pci_bridge_c::after_restore_state(void)
   BX_PCI_THIS smram_control(BX_PCI_THIS pci_conf[0x72]);
   if (BX_PCI_THIS vbridge != NULL) {
     BX_PCI_THIS vbridge->after_restore_state();
+  }
+  if (BX_PCI_THIS i850_agp_bridge != NULL) {
+    BX_PCI_THIS i850_agp_bridge->after_restore_state();
   }
 }
 
@@ -457,6 +489,37 @@ void bx_pci_bridge_c::pci_write_handler(Bit8u address, Bit32u value, unsigned io
           }
           BX_INFO(("AGP aperture size set to %d MB", apsize >> 20));
           pci_bar[0].size = apsize;
+        } else if (BX_PCI_THIS chipset == BX_PCI_CHIPSET_I850) {
+          // i850 MCH AGP aperture size (similar to i440BX)
+          BX_PCI_THIS pci_conf[address+i] = value8 & 0x3f;
+          switch (BX_PCI_THIS pci_conf[0xb4]) {
+            case 0x00:
+              apsize = (1 << 28);
+              break;
+            case 0x20:
+              apsize = (1 << 27);
+              break;
+            case 0x30:
+              apsize = (1 << 26);
+              break;
+            case 0x38:
+              apsize = (1 << 25);
+              break;
+            case 0x3c:
+              apsize = (1 << 24);
+              break;
+            case 0x3e:
+              apsize = (1 << 23);
+              break;
+            case 0x3f:
+              apsize = (1 << 22);
+              break;
+            default:
+              BX_ERROR(("Invalid AGP aperture size mask for i850"));
+              apsize = 0;
+          }
+          BX_INFO(("i850 AGP aperture size set to %d MB", apsize >> 20));
+          pci_bar[0].size = apsize;
         }
         break;
       case 0xb8:
@@ -469,10 +532,16 @@ void bx_pci_bridge_c::pci_write_handler(Bit8u address, Bit32u value, unsigned io
             (value8 != oldval)) {
           BX_PCI_THIS pci_conf[address+i] = value8;
           attbase_changed |= 1;
+        } else if ((BX_PCI_THIS chipset == BX_PCI_CHIPSET_I850) &&
+                   (value8 != oldval)) {
+          BX_PCI_THIS pci_conf[address+i] = value8;
+          attbase_changed |= 1;
         }
         break;
       case 0xf0:
         if (BX_PCI_THIS chipset == BX_PCI_CHIPSET_I440BX) {
+          BX_PCI_THIS pci_conf[address+i] = value8 & 0xc0;
+        } else if (BX_PCI_THIS chipset == BX_PCI_CHIPSET_I850) {
           BX_PCI_THIS pci_conf[address+i] = value8 & 0xc0;
         }
         break;
@@ -749,4 +818,160 @@ void bx_pci_vbridge_c::pci_write_handler(Bit8u address, Bit32u value, unsigned i
     pci_conf[address+i] = value8;
   }
 }
+
+// i850 MCH PCI-to-AGP Bridge
+//
+// The i850 MCH has a dedicated AGP bridge for graphics memory management
+// with RDRAM-specific features and extended AGP capabilities.
+
+#undef LOG_THIS
+#define LOG_THIS
+
+bx_pci_i850agp_bridge_c::bx_pci_i850agp_bridge_c()
+{
+  put("I850AGP");
+}
+
+bx_pci_i850agp_bridge_c::~bx_pci_i850agp_bridge_c()
+{
+  SIM->get_bochs_root()->remove("i850_agp_bridge");
+  BX_DEBUG(("Exit"));
+}
+
+void bx_pci_i850agp_bridge_c::init(void)
+{
+  // i850 MCH AGP Bridge: Device 1, Function 0
+  Bit8u devfunc = BX_PCI_DEVICE(1, 0);
+  DEV_register_pci_handlers(this, &devfunc, BX_PLUGIN_PCI, "i850 MCH PCI-to-AGP bridge");
+  
+  // PCI header for AGP-to-PCI bridge
+  // Vendor ID: 0x8086 (Intel)
+  // Device ID: 0x2531 (i850 AGP Bridge)
+  // Revision: 0x02
+  // Class: 0x060400 (PCI-to-AGP bridge)
+  init_pci_conf(0x8086, 0x2531, 0x02, 0x060400, 0x01, 0);
+  
+  // Status register
+  pci_conf[0x06] = 0x20;
+  pci_conf[0x07] = 0x02;
+  
+  // Secondary Status Register - secondary bus has 0xA0 capability at offset 0x1E
+  pci_conf[0x1e] = 0xa0;
+}
+
+void bx_pci_i850agp_bridge_c::reset(unsigned type)
+{
+  // PCI Command - Master/Memory/IO disabled by default
+  pci_conf[0x04] = 0x00;
+  pci_conf[0x05] = 0x00;
+  
+  // Bridge Control - Bus Master, Memory, I/O decode disabled
+  pci_conf[0x1c] = 0xf0;  // I/O Base and Limit
+  pci_conf[0x1f] = 0x02;  // Secondary Status
+  
+  // Memory Base/Limit (mapped for graphics memory)
+  pci_conf[0x20] = 0xf0;  // Memory Base lower byte
+  pci_conf[0x21] = 0xff;  // Memory Base upper byte
+  pci_conf[0x22] = 0x00;  // Memory Limit lower byte
+  pci_conf[0x23] = 0x00;  // Memory Limit upper byte
+  
+  // Prefetchable Memory Base/Limit (for graphics AGP memory)
+  pci_conf[0x24] = 0xf0;  // Prefetchable Memory Base lower byte
+  pci_conf[0x25] = 0xff;  // Prefetchable Memory Base upper byte
+  pci_conf[0x26] = 0x00;  // Prefetchable Memory Limit lower byte
+  pci_conf[0x27] = 0x00;  // Prefetchable Memory Limit upper byte
+  
+  // Bridge Control Register - Secondary Bus Reset, Master Abort Mode, etc.
+  pci_conf[0x3e] = 0x80;
+}
+
+void bx_pci_i850agp_bridge_c::register_state(void)
+{
+  bx_list_c *list = new bx_list_c(SIM->get_bochs_root(), "i850_agp_bridge", "i850 MCH AGP Bridge State");
+  register_pci_state(list);
+}
+
+void bx_pci_i850agp_bridge_c::after_restore_state(void)
+{
+  // No special state restoration needed for AGP bridge
+}
+
+#if BX_DEBUGGER
+void bx_pci_i850agp_bridge_c::debug_dump(int argc, char **argv)
+{
+  dbg_printf("i850 MCH PCI-to-AGP Bridge (Device 1, Function 0)\n");
+  dbg_printf("Device ID: 0x%04x\n", (pci_conf[0x03] << 8) | pci_conf[0x02]);
+  dbg_printf("I/O Base: 0x%02x, Limit: 0x%02x\n", pci_conf[0x1c], pci_conf[0x1d]);
+  dbg_printf("Memory Base: 0x%02x%02x, Limit: 0x%02x%02x\n",
+    pci_conf[0x21], pci_conf[0x20], pci_conf[0x23], pci_conf[0x22]);
+  dbg_printf("Prefetchable Memory Base: 0x%02x%02x, Limit: 0x%02x%02x\n",
+    pci_conf[0x25], pci_conf[0x24], pci_conf[0x27], pci_conf[0x26]);
+  dbg_printf("Bridge Control: 0x%02x\n", pci_conf[0x3e]);
+}
+#endif
+
+// pci configuration space write callback handler for i850 AGP bridge
+void bx_pci_i850agp_bridge_c::pci_write_handler(Bit8u address, Bit32u value, unsigned io_len)
+{
+  BX_DEBUG_PCI_WRITE(address, value, io_len);
+
+  for (unsigned i=0; i<io_len; i++) {
+    Bit8u value8 = (value >> (i*8)) & 0xff;
+    Bit8u oldval = pci_conf[address+i];
+    
+    switch (address+i) {
+      case 0x04: // PCICMD1 - PCI Command
+        // Master Enable, Memory Space Enable, I/O Space Enable
+        value8 &= 0x3f;
+        break;
+        
+      case 0x05: // Upper byte of PCI Command
+        value8 &= 0x01;
+        break;
+        
+      case 0x0d: // MLT1 - Master Latency Timer
+      case 0x1b: // SMLT - Secondary Master Latency Timer
+        value8 &= 0xf8;
+        break;
+        
+      case 0x1c: // IOBASE - I/O Base
+      case 0x1d: // IOLIMIT - I/O Limit
+      case 0x20: // MBASE lo - Memory Base Lower
+      case 0x22: // MLIMIT lo - Memory Limit Lower
+      case 0x24: // PMBASE lo - Prefetchable Memory Base Lower
+      case 0x26: // PMLIMIT lo - Prefetchable Memory Limit Lower
+        value8 &= 0xf0;
+        break;
+        
+      case 0x1f: // SSTS hi - Secondary Status (high byte)
+        // Clear on write (write 1 to clear)
+        value8 = (pci_conf[0x1f] & ~value8) | 0x02;
+        break;
+        
+      case 0x3e: // BCTRL - Bridge Control
+        // Master Abort Mode, Fast Back-to-Back, Secondary Bus Reset, etc.
+        value8 = (value8 & 0xc9) | 0x80;
+        break;
+        
+      case 0x19: // SBUSN - Secondary Bus Number
+      case 0x1a: // SUBUSN - Subordinate Bus Number
+      case 0x21: // MBASE hi - Memory Base Upper
+      case 0x23: // MLIMIT hi - Memory Limit Upper
+      case 0x25: // PMBASE hi - Prefetchable Memory Base Upper
+      case 0x27: // PMLIMIT hi - Prefetchable Memory Limit Upper
+        // Read-write registers - all bits allowed
+        break;
+        
+      case 0x06: // PCISTS1 - PCI Status (read-only)
+      case 0x07: // PCI Status upper byte (read-only)
+      case 0x18: // PBUSN - Primary Bus Number (read-only)
+      case 0x1e: // SSTS lo - Secondary Status lower byte (read-only)
+      default:
+        value8 = oldval;
+        BX_DEBUG(("i850 AGP Bridge write to read-only register 0x%02x", address+i));
+    }
+    pci_conf[address+i] = value8;
+  }
+}
+
 #endif /* BX_SUPPORT_PCI */

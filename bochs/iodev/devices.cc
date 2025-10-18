@@ -194,7 +194,7 @@ void bx_devices_c::init(BX_MEM_C *newmem)
     } else if (chipset == BX_PCI_CHIPSET_I440FX) {
       pci.advopts = BX_PCI_ADVOPT_NOAGP;
     } else if (chipset == BX_PCI_CHIPSET_I850) {
-      pci.advopts = BX_PCI_ADVOPT_NOAGP;
+      pci.advopts = 0;
     } else {
       pci.advopts = 0;
     }
@@ -217,6 +217,8 @@ void bx_devices_c::init(BX_MEM_C *newmem)
         }
       } else if (!strcmp(argv[i], "noagp")) {
         if (chipset == BX_PCI_CHIPSET_I440BX) {
+          pci.advopts |= BX_PCI_ADVOPT_NOAGP;
+        } else if (chipset == BX_PCI_CHIPSET_I850) {
           pci.advopts |= BX_PCI_ADVOPT_NOAGP;
         } else {
           BX_ERROR(("Disabling AGP not supported by PCI chipset"));

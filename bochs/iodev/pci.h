@@ -39,6 +39,7 @@ enum {
 };
 
 class bx_pci_vbridge_c;
+class bx_pci_i850agp_bridge_c;
 
 class bx_pci_bridge_c : public bx_pci_device_c {
 public:
@@ -68,6 +69,7 @@ private:
   Bit8u dram_detect;
   Bit32u gart_base;
   bx_pci_vbridge_c *vbridge;
+  bx_pci_i850agp_bridge_c *i850_agp_bridge;
 };
 
 class bx_pci_vbridge_c : public bx_pci_device_c {
@@ -80,5 +82,20 @@ public:
   virtual void after_restore_state(void);
 
   virtual void pci_write_handler(Bit8u address, Bit32u value, unsigned io_len);
+};
+
+class bx_pci_i850agp_bridge_c : public bx_pci_device_c {
+public:
+  bx_pci_i850agp_bridge_c();
+  virtual ~bx_pci_i850agp_bridge_c();
+  virtual void init(void);
+  virtual void reset(unsigned type);
+  virtual void register_state(void);
+  virtual void after_restore_state(void);
+
+  virtual void pci_write_handler(Bit8u address, Bit32u value, unsigned io_len);
+#if BX_DEBUGGER
+  virtual void debug_dump(int argc, char **argv);
+#endif
 };
 #endif
