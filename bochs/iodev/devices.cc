@@ -1427,7 +1427,8 @@ bool bx_devices_c::register_pci_handlers(bx_pci_device_c *dev,
 
   if (strcmp(name, "pci") && strcmp(name, "pci2isa") && strcmp(name, "pci_ide")
       && ((*devfunc & 0xf8) == 0x00)) {
-    if ((SIM->get_param_enum(BXPN_PCI_CHIPSET)->get() == BX_PCI_CHIPSET_I440BX) &&
+    unsigned chipset = SIM->get_param_enum(BXPN_PCI_CHIPSET)->get();
+    if (((chipset == BX_PCI_CHIPSET_I440BX) || (chipset == BX_PCI_CHIPSET_I850)) &&
         (is_agp_present())) {
       max_pci_slots = 4;
     }
