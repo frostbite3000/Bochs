@@ -779,10 +779,9 @@ void bx_voodoo_1_2_c::init_model(void)
   DEV_register_pci_handlers(this, &s.devfunc, BX_PLUGIN_VOODOO,
                             "3dfx Voodoo Graphics (SST-1/2)");
   if (s.model == VOODOO_1) {
-    init_pci_conf(0x121a, 0x0001, 0x02, 0x000000, 0x00, BX_PCI_INTA);
+    init_pci_conf(0x121a, 0x0001, 0x02, 0x040000, 0x00, BX_PCI_INTA);
   } else if (s.model == VOODOO_2) {
-    init_pci_conf(0x121a, 0x0002, 0x02, 0x038000, 0x00, BX_PCI_INTA);
-    pci_conf[0x10] = 0x08;
+    init_pci_conf(0x121a, 0x0002, 0x02, 0x040000, 0x00, BX_PCI_INTA);
   }
   init_bar_mem(0, 0x1000000, mem_read_handler, mem_write_handler);
   s.vdraw.clock_enabled = 1;
