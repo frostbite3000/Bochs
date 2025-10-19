@@ -410,7 +410,7 @@ currently work with.
   <row>
     <entry>3D video card</entry>
     <entry>Yes</entry>
-    <entry>Four 3dfx Voodoo graphics adapter models are supported now.
+    <entry>Five 3dfx Voodoo graphics adapter models are supported now.
       For more information see <xref linkend="voodoo-notes">.</entry>
   </row>
   <row>
@@ -9943,9 +9943,9 @@ Bochs VBE Display Drivers for Windows NT/2000
   <title>Notes about Voodoo Graphics usage</title>
 
   <para>
-  Bochs supports the emulation of 4 different 3dfx Voodoo Graphics adapter models.
+  Bochs supports the emulation of 5 different 3dfx Voodoo Graphics adapter models.
   The Voodoo1 and Voodoo2 models are 3D-only add-on cards and require a VGA
-  compatible primary device. The Voodoo Banshee and its successor Voodoo3 have
+  compatible primary device. The Voodoo Banshee, Voodoo3, and Voodoo5 have
   both a VGA core and a 2D/3D core, so no other VGA card is required. The 2D/3D
   cards can be assigned to AGP if the i440BX chipset is selected (slot #5).
   </para>
@@ -9955,14 +9955,14 @@ Bochs VBE Display Drivers for Windows NT/2000
   to "voodoo" in that case, the primary display adapter is an ISA VGA card.
   </para>
   <para>
-  For emulating the Voodoo Banshee or Voodoo3 adapter, the vga extension option
+  For emulating the Voodoo Banshee, Voodoo3, or Voodoo5 adapter, the vga extension option
   must be set to "voodoo". Using a different primary display adapter and a
   Banshee compatible device with its VGA interface disabled is not
-  implemented yet. For both Banshee and Voodoo3 there is now a specific version
+  implemented yet. For Banshee, Voodoo3, and Voodoo5 there is now a specific version
   of the LGPL'd VGABIOS with Voodoo Banshee specific code called
   <filename>VGABIOS-lgpl-latest-banshee.bin</filename>. The binary file is compiled
   for the Banshee PCI model, but Bochs modifies the VGABIOS data after loading
-  to support the Voodoo3 and AGP models properly.
+  to support the Voodoo3, Voodoo5, and AGP models properly.
   </para>
   <para>
   These bochsrc settings should be used for Voodoo Banshee PCI:
@@ -9979,9 +9979,13 @@ Bochs VBE Display Drivers for Windows NT/2000
   </screen>
   </para>
   <para>
-  To support the Voodoo3 just change the model:
+  To support the Voodoo3 or Voodoo5 just change the model:
   <screen>
   voodoo: model=voodoo3
+  </screen>
+  or
+  <screen>
+  voodoo: model=voodoo5
   </screen>
   </para>
 </section>

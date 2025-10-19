@@ -75,7 +75,7 @@ Attached devices
   |        |      +- Cirrus Logic PCI/ISA CLGD5446 SVGA adapter svga_cirrus.cc
   |        |      +- 3dfx Voodoo Banshee / Voodoo3 adapter      banshee.cc
   |        |
-  |        +---- 3dfx Voodoo Graphics adapter (4 models)        voodoo.cc
+  |        +---- 3dfx Voodoo Graphics adapter (5 models)        voodoo.cc
   |        |
   |        |
   |        +---- VESA DDC support (plug&play monitor)           ddc.cc
