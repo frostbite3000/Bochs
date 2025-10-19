@@ -406,6 +406,8 @@ uint8_t bios_uuid[16];
 unsigned long ebda_cur_addr;
 #endif
 int chipset_i440bx;
+int chipset_i850;
+int chipset_ich2;
 int acpi_enabled;
 uint32_t pm_io_base, smb_io_base;
 int pm_sci_int;
@@ -550,6 +552,15 @@ void ram_probe(void)
   else
     ram_size = (cmos_readb(0x30) | (cmos_readb(0x31) << 8)) * 1024 +
         1 * 1024 * 1024;
+  
+  /* Check for i850 MCH RDRAM configuration */
+  if (chipset_i850) {
+    /* i850 supports RDRAM memory */
+    /* For now, assume standard memory configuration */
+    /* TODO: Implement RDRAM detection and configuration */
+    BX_INFO("i850 MCH: Using standard memory configuration\n");
+  }
+  
   BX_INFO("ram_size=0x%08lx\n", ram_size);
 
   if (cmos_readb(0x5b) | cmos_readb(0x5c) | cmos_readb(0x5d))
@@ -617,6 +628,7 @@ typedef struct PCIDevice {
     int bus;
     int devfn;
 } PCIDevice;
+
 
 static uint32_t pci_bios_io_addr;
 static uint32_t agp_bios_io_addr;
@@ -914,6 +926,10 @@ static void pci_bios_init_bridges(PCIDevice *d)
         cksum = acpi_checksum(pir, 0x80);
         writeb(pir + 0x1f, cksum); // Checksum
         chipset_i440bx = 1; // Used later for ACPI fixes
+      } else if (device_id == PCI_DEVICE_ID_INTEL_82850) {
+        /* i850 MCH */
+        chipset_i850 = 1;
+        BX_INFO("i850 MCH detected\n");
       } else if (device_id == PCI_DEVICE_ID_INTEL_82443_1) {
         /* i440BX PCI/AGP bridge */
         agpdev->bus = 1;
@@ -1000,6 +1016,7 @@ static void piix4_pm_enable(PCIDevice *d)
 #endif
 }
 
+
 static void pci_bios_init_pcirom(PCIDevice *d, uint32_t paddr)
 {
     PCIDevice d1, *i440fx = &d1;
@@ -1069,6 +1086,13 @@ static void pci_bios_init_device(PCIDevice *d)
             pci_config_writew(d, 0x40, 0x8000); // enable IDE0
             pci_config_writew(d, 0x42, 0x8000); // enable IDE1
             goto default_map;
+        } else if (vendor_id == PCI_VENDOR_ID_INTEL &&
+                   (device_id == PCI_DEVICE_ID_INTEL_82801BA_1 ||
+                    device_id == PCI_DEVICE_ID_INTEL_82801BAM_1)) {
+            /* ICH2 IDE */
+            pci_config_writew(d, 0x40, 0x8000); // enable IDE0
+            pci_config_writew(d, 0x42, 0x8000); // enable IDE1
+            goto default_map;
         } else {
             /* IDE: we map it as in ISA mode */
             pci_set_io_region_addr(d, 0, 0x1f0);
@@ -1084,6 +1108,35 @@ static void pci_bios_init_device(PCIDevice *d)
                 /* MPIC & MPIC2 */
                 pci_set_io_region_addr(d, 0, 0x80800000 + 0x00040000);
             }
+        }
+        break;
+    case PCI_CLASS_SERIAL_USB:
+        if (vendor_id == PCI_VENDOR_ID_INTEL &&
+            (device_id == PCI_DEVICE_ID_INTEL_82801BA_2 ||
+             device_id == PCI_DEVICE_ID_INTEL_82801BA_3 ||
+             device_id == PCI_DEVICE_ID_INTEL_82801BAM_2 ||
+             device_id == PCI_DEVICE_ID_INTEL_82801BAM_3)) {
+            /* ICH2 USB Controller */
+            pci_set_io_region_addr(d, 0, 0x0000); /* Default USB base */
+            BX_INFO("ICH2 USB Controller detected\n");
+        }
+        break;
+    case PCI_CLASS_SERIAL_SMBUS:
+        if (vendor_id == PCI_VENDOR_ID_INTEL &&
+            (device_id == PCI_DEVICE_ID_INTEL_82801BA_4 ||
+             device_id == PCI_DEVICE_ID_INTEL_82801BAM_4)) {
+            /* ICH2 SMBus Controller */
+            pci_set_io_region_addr(d, 0, SMB_IO_BASE);
+            BX_INFO("ICH2 SMBus Controller detected\n");
+        }
+        break;
+    case PCI_CLASS_NETWORK_ETHERNET:
+        if (vendor_id == PCI_VENDOR_ID_INTEL &&
+            (device_id == PCI_DEVICE_ID_INTEL_82801BA_5 ||
+             device_id == PCI_DEVICE_ID_INTEL_82801BAM_5)) {
+            /* ICH2 LAN Controller */
+            pci_set_io_region_addr(d, 0, 0x0000); /* Default LAN base */
+            BX_INFO("ICH2 LAN Controller detected\n");
         }
         break;
     case 0xff00:
@@ -1176,6 +1229,35 @@ static void pci_bios_init_device(PCIDevice *d)
         pm_sci_int = pci_config_readb(d, PCI_INTERRUPT_LINE);
         piix4_pm_enable(d);
         acpi_enabled = 1;
+    } else if (vendor_id == PCI_VENDOR_ID_INTEL && 
+               (device_id == PCI_DEVICE_ID_INTEL_82801BA_0 || 
+                device_id == PCI_DEVICE_ID_INTEL_82801BA_1 ||
+                device_id == PCI_DEVICE_ID_INTEL_82801BA_2 ||
+                device_id == PCI_DEVICE_ID_INTEL_82801BA_3 ||
+                device_id == PCI_DEVICE_ID_INTEL_82801BA_4 ||
+                device_id == PCI_DEVICE_ID_INTEL_82801BA_5 ||
+                device_id == PCI_DEVICE_ID_INTEL_82801BA_6 ||
+                device_id == PCI_DEVICE_ID_INTEL_82801BA_7 ||
+                device_id == PCI_DEVICE_ID_INTEL_82801BA_8 ||
+                device_id == PCI_DEVICE_ID_INTEL_82801BA_9 ||
+                device_id == PCI_DEVICE_ID_INTEL_82801BA_A ||
+                device_id == PCI_DEVICE_ID_INTEL_82801BA_B ||
+                device_id == PCI_DEVICE_ID_INTEL_82801BAM_0 ||
+                device_id == PCI_DEVICE_ID_INTEL_82801BAM_1 ||
+                device_id == PCI_DEVICE_ID_INTEL_82801BAM_2 ||
+                device_id == PCI_DEVICE_ID_INTEL_82801BAM_3 ||
+                device_id == PCI_DEVICE_ID_INTEL_82801BAM_4 ||
+                device_id == PCI_DEVICE_ID_INTEL_82801BAM_5)) {
+        /* ICH2 Power Management device (for ACPI) */
+        chipset_ich2 = 1;
+        pm_io_base = PM_IO_BASE;
+        smb_io_base = SMB_IO_BASE;
+        // acpi sci is hardwired to 9
+        pci_config_writeb(d, PCI_INTERRUPT_LINE, 9);
+        pm_sci_int = pci_config_readb(d, PCI_INTERRUPT_LINE);
+        piix4_pm_enable(d);
+        acpi_enabled = 1;
+        BX_INFO("ICH2 detected\n");
     }
 }
 
@@ -1228,6 +1310,8 @@ void pci_bios_init(void)
     pci_bios_mem_addr = 0xc0000000;
     pci_bios_rom_start = 0xc0000;
     chipset_i440bx = 0;
+    chipset_i850 = 0;
+    chipset_ich2 = 0;
 
     pci_for_each_device(pci_bios_init_bridges);
 
@@ -1895,7 +1979,13 @@ void acpi_bios_init(void)
     fadt->plvl2_lat = cpu_to_le16(0xfff); // C2 state not supported
     fadt->plvl3_lat = cpu_to_le16(0xfff); // C3 state not supported
     /* WBINVD + PROC_C1 + PWR_BUTTON + SLP_BUTTON + FIX_RTC */
-    fadt->flags = cpu_to_le32((1 << 0) | (1 << 2) | (1 << 4) | (1 << 5) | (1 << 6));
+    if (chipset_i850 && chipset_ich2) {
+        /* i850/ICH2 specific ACPI flags */
+        fadt->flags = cpu_to_le32((1 << 0) | (1 << 2) | (1 << 4) | (1 << 5) | (1 << 6) | (1 << 3));
+        BX_INFO("i850/ICH2 ACPI configuration\n");
+    } else {
+        fadt->flags = cpu_to_le32((1 << 0) | (1 << 2) | (1 << 4) | (1 << 5) | (1 << 6));
+    }
     acpi_build_table_header((struct acpi_table_header *)fadt, "FACP",
                             sizeof(*fadt), 1);
 
