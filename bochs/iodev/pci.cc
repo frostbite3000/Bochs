@@ -703,7 +703,7 @@ bx_pci_vbridge_c::~bx_pci_vbridge_c()
 void bx_pci_vbridge_c::init(void)
 {
   Bit8u devfunc = BX_PCI_DEVICE(1, 0);
-  BX_PCI_CHIPSET chipset = SIM->get_param_enum(BXPN_PCI_CHIPSET)->get();
+  unsigned chipset = SIM->get_param_enum(BXPN_PCI_CHIPSET)->get();
   
   if (chipset == BX_PCI_CHIPSET_VIA694T) {
     DEV_register_pci_handlers(this, &devfunc, BX_PLUGIN_PCI, "VIA VT82C694T PCI-to-AGP bridge");
