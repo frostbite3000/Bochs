@@ -158,7 +158,7 @@ void bx_banshee_c::init_model(void)
       strcpy(model, "3dfx Voodoo Banshee AGP");
     }
     DEV_register_pci_handlers2(this, &s.devfunc, BX_PLUGIN_VOODOO, model, is_agp);
-    init_pci_conf(0x121a, 0x0003, 0x01, 0x030000, 0x00, BX_PCI_INTA);
+    init_pci_conf(0x121a, 0x0003, 0x03, 0x030000, 0x00, BX_PCI_INTA);
   } else if (s.model == VOODOO_3) {
     if (!is_agp) {
       strcpy(model, "3dfx Voodoo 3 PCI");
@@ -167,6 +167,14 @@ void bx_banshee_c::init_model(void)
     }
     DEV_register_pci_handlers2(this, &s.devfunc, BX_PLUGIN_VOODOO, model, is_agp);
     init_pci_conf(0x121a, 0x0005, 0x01, 0x030000, 0x00, BX_PCI_INTA);
+  } else if (s.model == VOODOO_5) {
+    if (!is_agp) {
+      strcpy(model, "3dfx Voodoo 5 5500 PCI");
+    } else {
+      strcpy(model, "3dfx Voodoo 5 5500 AGP");
+    }
+    DEV_register_pci_handlers2(this, &s.devfunc, BX_PLUGIN_VOODOO, model, is_agp);
+    init_pci_conf(0x121a, 0x0009, 0x01, 0x030000, 0x00, BX_PCI_INTA);
   } else {
     BX_PANIC(("Unknown Voodoo Banshee compatible model"));
   }
@@ -194,9 +202,12 @@ void bx_banshee_c::init_model(void)
     if (pci_vid == 0x121a) {
       if (s.model == VOODOO_BANSHEE) {
         pci_rom[0x7ffa] = is_agp ? 0x03:0x04;
-      } else {
+      } else if (s.model == VOODOO_3) {
         pci_rom[pcir + 6] = 0x05;
         pci_rom[0x7ffa] = is_agp ? 0x52:0x36;
+      } else if (s.model == VOODOO_5) {
+        pci_rom[pcir + 6] = 0x09;
+        pci_rom[0x7ffa] = is_agp ? 0x02:0x09;
       }
       Bit8u checksum = 0;
       for (int i = 0; i < 0x7fff; i++) {
@@ -250,13 +261,20 @@ void bx_banshee_c::reset(unsigned type)
   for (i = 0; i < 4; i++) {
     pci_conf[0x2c + i] = pci_rom[(pci_rom_size - 8) + i];
   }
-  v->banshee.io[io_pciInit0] = 0x01800040;
-  v->banshee.io[io_sipMonitor] = 0x40000000;
-  v->banshee.io[io_lfbMemoryConfig] = 0x000a2200;
-  v->banshee.io[io_miscInit1] = ((v->banshee.io[io_strapInfo] & 0x1f) << 24);
-  v->banshee.io[io_dramInit0] = 0x00579d29 | ((v->banshee.io[io_strapInfo] & 0x60) << 21);
-  v->banshee.io[io_dramInit1] = 0x00f02200;
-  v->banshee.io[io_tmuGbeInit] = 0x00000bfb;
+  if (s.model == VOODOO_5) {
+    v->banshee.io[io_pciInit0] = 0x01841320;
+    v->banshee.io[io_miscInit1] = ((v->banshee.io[io_strapInfo] & 0x1f) << 24);
+    v->banshee.io[io_dramInit0] = 0x001ea9a9 | ((v->banshee.io[io_strapInfo] & 0x60) << 21);
+    v->banshee.io[io_dramInit1] = 0x00240031;
+  } else {
+    v->banshee.io[io_pciInit0] = 0x01800040;
+    v->banshee.io[io_sipMonitor] = 0x40000000;
+    v->banshee.io[io_lfbMemoryConfig] = 0x000a2200;
+    v->banshee.io[io_miscInit1] = ((v->banshee.io[io_strapInfo] & 0x1f) << 24);
+    v->banshee.io[io_dramInit0] = 0x00579d29 | ((v->banshee.io[io_strapInfo] & 0x60) << 21);
+    v->banshee.io[io_dramInit1] = 0x00f02200;
+    v->banshee.io[io_tmuGbeInit] = 0x00000bfb;
+  }
   v->vidclk = 14318180;
   if (theVoodooVga != NULL) {
     theVoodooVga->banshee_set_vclk3((Bit32u)v->vidclk);
