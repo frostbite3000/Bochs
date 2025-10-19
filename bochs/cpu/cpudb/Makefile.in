@@ -41,6 +41,7 @@ CPUDB_OBJS = intel/i486dx4.o \
              intel/pentium_mmx.o \
              intel/p2_klamath.o \
              intel/p3_katmai.o \
+             intel/p3_coppermine.o \
              intel/p4_willamette.o \
              intel/p4_prescott_celeron_336.o \
              intel/atom_n270.o \
