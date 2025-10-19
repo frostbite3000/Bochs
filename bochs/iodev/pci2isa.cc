@@ -74,11 +74,13 @@ void bx_piix3_c::init(void)
   BX_P2I_THIS s.chipset = SIM->get_param_enum(BXPN_PCI_CHIPSET)->get();
   if (BX_P2I_THIS s.chipset == BX_PCI_CHIPSET_I440BX) {
     BX_P2I_THIS s.devfunc = BX_PCI_DEVICE(7, 0);
+  } else if (BX_P2I_THIS s.chipset == BX_PCI_CHIPSET_VIA694T) {
+    BX_P2I_THIS s.devfunc = BX_PCI_DEVICE(7, 0); // VIA uses same slot as i440BX
   } else {
     BX_P2I_THIS s.devfunc = BX_PCI_DEVICE(1, 0);
   }
   DEV_register_pci_handlers(this, &BX_P2I_THIS s.devfunc, BX_PLUGIN_PCI2ISA,
-      "PIIX3 PCI-to-ISA bridge");
+      BX_P2I_THIS s.chipset == BX_PCI_CHIPSET_VIA694T ? "VIA VT82C686B PCI-to-ISA bridge" : "PIIX3 PCI-to-ISA bridge");
 
   DEV_register_iowrite_handler(this, write_handler, 0x00B2, "PIIX3 PCI-to-ISA bridge", 3);
   DEV_register_iowrite_handler(this, write_handler, 0x00B3, "PIIX3 PCI-to-ISA bridge", 1);
@@ -102,6 +104,9 @@ void bx_piix3_c::init(void)
     init_pci_conf(0x8086, 0x122e, 0x01, 0x060100, 0x80, 0);
   } else if (BX_P2I_THIS s.chipset == BX_PCI_CHIPSET_I440BX) {
     init_pci_conf(0x8086, 0x7110, 0x00, 0x060100, 0x80, 0);
+  } else if (BX_P2I_THIS s.chipset == BX_PCI_CHIPSET_VIA694T) {
+    // VIA VT82C686B South Bridge
+    init_pci_conf(0x1106, 0x0686, 0x00, 0x060100, 0x80, 0);
   } else {
     init_pci_conf(0x8086, 0x7000, 0x00, 0x060100, 0x80, 0);
   }
@@ -188,6 +193,13 @@ void bx_piix3_c::pci_set_irq(Bit8u devfunc, unsigned line, bool level)
 
   int slot = DEV_pci_get_slot_from_dev(device);
   if (BX_P2I_THIS s.chipset == BX_PCI_CHIPSET_I440BX) {
+    if ((device == 7) || (device == 0)) {
+      pirq = line - 1;
+    } else {
+      pirq = (slot + line - 2) & 3;
+    }
+  } else if (BX_P2I_THIS s.chipset == BX_PCI_CHIPSET_VIA694T) {
+    // VIA VT82C686B uses similar interrupt routing as i440BX
     if ((device == 7) || (device == 0)) {
       pirq = line - 1;
     } else {

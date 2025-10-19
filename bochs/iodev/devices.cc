@@ -377,7 +377,7 @@ void bx_devices_c::init(BX_MEM_C *newmem)
   const char *device;
 
   if (pci.enabled) {
-    if ((chipset == BX_PCI_CHIPSET_I440BX) && is_agp_present()) {
+    if (((chipset == BX_PCI_CHIPSET_I440BX) || (chipset == BX_PCI_CHIPSET_VIA694T)) && is_agp_present()) {
       device = SIM->get_param_enum("pci.slot.5")->get_selected();
       if (strcmp(device, "none") && !pci.slot_used[4]) {
         BX_PANIC(("Plugin '%s' at AGP slot not loaded", device));
@@ -1422,7 +1422,8 @@ bool bx_devices_c::register_pci_handlers(bx_pci_device_c *dev,
 
   if (strcmp(name, "pci") && strcmp(name, "pci2isa") && strcmp(name, "pci_ide")
       && ((*devfunc & 0xf8) == 0x00)) {
-    if ((SIM->get_param_enum(BXPN_PCI_CHIPSET)->get() == BX_PCI_CHIPSET_I440BX) &&
+    if (((SIM->get_param_enum(BXPN_PCI_CHIPSET)->get() == BX_PCI_CHIPSET_I440BX) ||
+         (SIM->get_param_enum(BXPN_PCI_CHIPSET)->get() == BX_PCI_CHIPSET_VIA694T)) &&
         (is_agp_present())) {
       max_pci_slots = 4;
     }

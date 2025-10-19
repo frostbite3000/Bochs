@@ -38,7 +38,7 @@
 
 #define LOG_THIS thePciBridge->
 
-const char csname[3][20] = {"i430FX TSC", "i440FX PMC", "i440BX Host bridge"};
+const char csname[4][20] = {"i430FX TSC", "i440FX PMC", "i440BX Host bridge", "VIA VT82C694T"};
 
 bx_pci_bridge_c *thePciBridge = NULL;
 
@@ -112,6 +112,27 @@ void bx_pci_bridge_c::init(void)
     BX_PCI_THIS pci_conf[0xf3] = 0xf8;
     BX_PCI_THIS pci_conf[0xf8] = 0x20;
     BX_PCI_THIS pci_conf[0xf9] = 0x0f;
+  } else if (BX_PCI_THIS chipset == BX_PCI_CHIPSET_VIA694T) {
+    // VIA VT82C694T Apollo Pro133T North Bridge
+    if (DEV_agp_present()) {
+      init_pci_conf(0x1106, 0x0694, 0x00, 0x060000, 0x00, 0);
+      BX_PCI_THIS pci_conf[0x06] = 0x90; // Status: Fast back-to-back capable, AGP capable
+      BX_PCI_THIS pci_conf[0x07] = 0x02; // Command: Memory space enabled
+      BX_PCI_THIS pci_conf[0x10] = 0x08; // Memory base address
+      init_bar_mem(0, 0xf0000000, agp_ap_read_handler, agp_ap_write_handler);
+      BX_PCI_THIS pci_conf[0x34] = 0xa0; // Capability pointer
+      BX_PCI_THIS pci_conf[0xa0] = 0x02; // AGP Capability ID
+      BX_PCI_THIS pci_conf[0xa2] = 0x10; // AGP Status
+      BX_PCI_THIS pci_conf[0xa4] = 0x03; // AGP Command
+      BX_PCI_THIS pci_conf[0xa5] = 0x02; // AGP Command
+      BX_PCI_THIS pci_conf[0xa7] = 0x1f; // AGP Command
+      BX_PCI_THIS vbridge = new bx_pci_vbridge_c();
+      BX_PCI_THIS vbridge->init();
+    } else {
+      init_pci_conf(0x1106, 0x0694, 0x00, 0x060000, 0x00, 0);
+      BX_PCI_THIS pci_conf[0x06] = 0x80; // Status: Fast back-to-back capable
+      BX_PCI_THIS pci_conf[0x07] = 0x02; // Command: Memory space enabled
+    }
   } else { // i440FX
     init_pci_conf(0x8086, 0x1237, 0x00, 0x060000, 0x00, 0);
   }
@@ -168,6 +189,26 @@ void bx_pci_bridge_c::init(void)
         BX_PCI_THIS DRBA[i] = 0x20;
       }
     }
+  } else if (BX_PCI_THIS chipset == BX_PCI_CHIPSET_VIA694T) {
+    // VIA VT82C694T supports up to 1.5GB PC133/PC100 SDRAM
+    const Bit8u type[3] = {512, 128, 32};
+    if (ramsize > 1536) ramsize = 1536; // 1.5GB max
+    Bit8u drbval = 0;
+    unsigned row = 0;
+    unsigned ti = 0;
+    while ((ramsize > 0) && (row < 8) && (ti < 3)) {
+      unsigned mc = ramsize / type[ti];
+      ramsize = ramsize % type[ti];
+      for (i = 0; i < mc; i++) {
+        drbval += (type[ti] >> 3);
+        BX_PCI_THIS DRBA[row++] = drbval;
+        if (row == 8) break;
+      }
+      ti++;
+    }
+    while (row < 8) {
+      BX_PCI_THIS DRBA[row++] = drbval;
+    }
   } else { // i440FX
     const Bit8u type[3] = {128, 32, 8};
     if (ramsize > 1024) ramsize = 1024;
@@ -222,6 +263,12 @@ bx_pci_bridge_c::reset(unsigned type)
     if (BX_PCI_THIS vbridge != NULL) {
       BX_PCI_THIS vbridge->reset(type);
     }
+  } else if (BX_PCI_THIS chipset == BX_PCI_CHIPSET_VIA694T) {
+    if (BX_PCI_THIS vbridge != NULL) {
+      BX_PCI_THIS vbridge->reset(type);
+    }
+    BX_PCI_THIS pci_conf[0x06] = DEV_agp_present() ? 0x90 : 0x80; // Status: Fast back-to-back capable, AGP capable if present
+    BX_PCI_THIS pci_conf[0x07] = 0x02; // Command: Memory space enabled
   } else { // i440FX
     BX_PCI_THIS pci_conf[0x06] = 0x80;
     BX_PCI_THIS pci_conf[0x51] = 0x01;
@@ -314,6 +361,8 @@ void bx_pci_bridge_c::pci_write_handler(Bit8u address, Bit32u value, unsigned io
           BX_PCI_THIS pci_conf[address+i] = (value8 & 0xef);
         } else if (BX_PCI_THIS chipset == BX_PCI_CHIPSET_I440BX) {
           BX_PCI_THIS pci_conf[address+i] = (value8 & 0xec);
+        } else if (BX_PCI_THIS chipset == BX_PCI_CHIPSET_VIA694T) {
+          BX_PCI_THIS pci_conf[address+i] = (value8 & 0xff); // VIA allows all bits
         } else {
           BX_PCI_THIS pci_conf[address+i] = (value8 & 0x70);
         }
@@ -321,6 +370,8 @@ void bx_pci_bridge_c::pci_write_handler(Bit8u address, Bit32u value, unsigned io
       case 0x51:
         if (BX_PCI_THIS chipset == BX_PCI_CHIPSET_I440BX) {
           BX_PCI_THIS pci_conf[address+i] = (value8 & 0x8f) | 0x20;
+        } else if (BX_PCI_THIS chipset == BX_PCI_CHIPSET_VIA694T) {
+          BX_PCI_THIS pci_conf[address+i] = (value8 & 0xff); // VIA allows all bits
         } else if (BX_PCI_THIS chipset != BX_PCI_CHIPSET_I430FX) {
           BX_PCI_THIS pci_conf[address+i] = (value8 & 0x80) | 0x01;
         }
@@ -412,6 +463,37 @@ void bx_pci_bridge_c::pci_write_handler(Bit8u address, Bit32u value, unsigned io
           }
           BX_INFO(("AGP aperture size set to %d MB", apsize >> 20));
           pci_bar[0].size = apsize;
+        } else if (BX_PCI_THIS chipset == BX_PCI_CHIPSET_VIA694T) {
+          // VIA VT82C694T AGP aperture size control
+          BX_PCI_THIS pci_conf[address+i] = value8 & 0x3f;
+          switch (BX_PCI_THIS pci_conf[0xb4]) {
+            case 0x00:
+              apsize = (1 << 28); // 256MB
+              break;
+            case 0x20:
+              apsize = (1 << 27); // 128MB
+              break;
+            case 0x30:
+              apsize = (1 << 26); // 64MB
+              break;
+            case 0x38:
+              apsize = (1 << 25); // 32MB
+              break;
+            case 0x3c:
+              apsize = (1 << 24); // 16MB
+              break;
+            case 0x3e:
+              apsize = (1 << 23); // 8MB
+              break;
+            case 0x3f:
+              apsize = (1 << 22); // 4MB
+              break;
+            default:
+              BX_ERROR(("Invalid VIA AGP aperture size mask"));
+              apsize = 0;
+          }
+          BX_INFO(("VIA AGP aperture size set to %d MB", apsize >> 20));
+          pci_bar[0].size = apsize;
         }
         break;
       case 0xb8:
@@ -420,7 +502,8 @@ void bx_pci_bridge_c::pci_write_handler(Bit8u address, Bit32u value, unsigned io
         value8 &= 0xf0;
       case 0xba:
       case 0xbb:
-        if ((BX_PCI_THIS chipset == BX_PCI_CHIPSET_I440BX) &&
+        if (((BX_PCI_THIS chipset == BX_PCI_CHIPSET_I440BX) ||
+             (BX_PCI_THIS chipset == BX_PCI_CHIPSET_VIA694T)) &&
             (value8 != oldval)) {
           BX_PCI_THIS pci_conf[address+i] = value8;
           attbase_changed |= 1;
@@ -429,6 +512,9 @@ void bx_pci_bridge_c::pci_write_handler(Bit8u address, Bit32u value, unsigned io
       case 0xf0:
         if (BX_PCI_THIS chipset == BX_PCI_CHIPSET_I440BX) {
           BX_PCI_THIS pci_conf[address+i] = value8 & 0xc0;
+        } else if (BX_PCI_THIS chipset == BX_PCI_CHIPSET_VIA694T) {
+          // VIA VT82C694T AGP control register
+          BX_PCI_THIS pci_conf[address+i] = value8 & 0xff;
         }
         break;
       default:
@@ -617,8 +703,15 @@ bx_pci_vbridge_c::~bx_pci_vbridge_c()
 void bx_pci_vbridge_c::init(void)
 {
   Bit8u devfunc = BX_PCI_DEVICE(1, 0);
-  DEV_register_pci_handlers(this, &devfunc, BX_PLUGIN_PCI, "i440BX PCI-to-AGP bridge");
-  init_pci_conf(0x8086, 0x7191, 0x02, 0x060400, 0x01, 0);
+  BX_PCI_CHIPSET chipset = SIM->get_param_enum(BXPN_PCI_CHIPSET)->get();
+  
+  if (chipset == BX_PCI_CHIPSET_VIA694T) {
+    DEV_register_pci_handlers(this, &devfunc, BX_PLUGIN_PCI, "VIA VT82C694T PCI-to-AGP bridge");
+    init_pci_conf(0x1106, 0x0695, 0x00, 0x060400, 0x01, 0);
+  } else {
+    DEV_register_pci_handlers(this, &devfunc, BX_PLUGIN_PCI, "i440BX PCI-to-AGP bridge");
+    init_pci_conf(0x8086, 0x7191, 0x02, 0x060400, 0x01, 0);
+  }
   pci_conf[0x06] = 0x20;
   pci_conf[0x07] = 0x02;
   pci_conf[0x1e] = 0xa0;

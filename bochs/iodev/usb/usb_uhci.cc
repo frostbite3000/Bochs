@@ -162,11 +162,14 @@ void bx_usb_uhci_c::init(void)
   } else if (SIM->get_param_enum(BXPN_PCI_CHIPSET)->get() == BX_PCI_CHIPSET_I440BX) {
     devfunc = BX_PCI_DEVICE(7, 2);
     devid = 0x7112;
+  } else if (SIM->get_param_enum(BXPN_PCI_CHIPSET)->get() == BX_PCI_CHIPSET_VIA694T) {
+    devfunc = BX_PCI_DEVICE(7, 2); // VIA uses same slot as i440BX
+    devid = 0x3038; // VIA VT82C686B USB Controller
   } else {
     devfunc = 0x00;
     devid = 0x7020;
   }
-  BX_UHCI_THIS init_uhci(devfunc, 0x8086, devid, 0x01, 0x00, BX_PCI_INTD);
+  BX_UHCI_THIS init_uhci(devfunc, SIM->get_param_enum(BXPN_PCI_CHIPSET)->get() == BX_PCI_CHIPSET_VIA694T ? 0x1106 : 0x8086, devid, 0x01, 0x00, BX_PCI_INTD);
 
   bx_list_c *usb_rt = (bx_list_c *) SIM->get_param(BXPN_MENU_RUNTIME_USB);
   bx_list_c *uhci_rt = new bx_list_c(usb_rt, "uhci", "UHCI Runtime Options");
