@@ -191,7 +191,7 @@ void bx_pci_bridge_c::init(void)
     }
   } else if (BX_PCI_THIS chipset == BX_PCI_CHIPSET_VIA694T) {
     // VIA VT82C694T supports up to 1.5GB PC133/PC100 SDRAM
-    const Bit8u type[3] = {512, 128, 32};
+    const Bit16u type[3] = {512, 128, 32};
     if (ramsize > 1536) ramsize = 1536; // 1.5GB max
     Bit8u drbval = 0;
     unsigned row = 0;
