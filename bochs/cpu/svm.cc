@@ -253,6 +253,9 @@ void BX_CPU_C::SvmExitLoadHostState(SVM_HOST_STATE *host)
     parse_selector(BX_CPU_THIS_PTR sregs[n].selector.value, &BX_CPU_THIS_PTR sregs[n].selector);
   }
 
+  // set flags before control registers to avoid false PANIC inside the setEFlags
+  setEFlags(host->eflags & ~EFlagsVMMask); // ignore saved copy of EFLAGS.VM
+
   BX_CPU_THIS_PTR gdtr = host->gdtr;
   BX_CPU_THIS_PTR idtr = host->idtr;
 
@@ -271,8 +274,6 @@ void BX_CPU_C::SvmExitLoadHostState(SVM_HOST_STATE *host)
   BX_CPU_THIS_PTR msr.pat = host->pat_msr;
 
   BX_CPU_THIS_PTR dr7.set32(0x00000400);
-
-  setEFlags(host->eflags & ~EFlagsVMMask); // ignore saved copy of EFLAGS.VM
 
   RIP = BX_CPU_THIS_PTR prev_rip = host->rip;
   RSP = host->rsp;
@@ -738,6 +739,10 @@ bool BX_CPU_C::SvmInjectEvents(void)
     case BX_HARDWARE_EXCEPTION:
       if (vector == 2 || vector > 31) {
         BX_ERROR(("SvmInjectEvents: invalid vector %d for HW exception", vector));
+        return false;
+      }
+      if (vector == BX_BR_EXCEPTION && long64_mode()) {
+        BX_ERROR(("SvmInjectEvents: invalid vector %d for long mode", vector));
         return false;
       }
       if (vector == BX_BP_EXCEPTION || vector == BX_OF_EXCEPTION) {
