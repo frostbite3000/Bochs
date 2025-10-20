@@ -62,10 +62,10 @@ static bx_geforce_c *theSvga = NULL;
 /* enumeration specifying which model of GeForce we are emulating */
 enum
 {
-    QUADRO_2_PRO,
     GEFORCE_3,
     GEFORCE_FX_5900,
     GEFORCE_6800,
+    QUADRO_2_PRO,
     MAX_GEFORCE_TYPES
 };
 
@@ -73,10 +73,10 @@ enum
 void geforce_init_options(void)
 {
   static const char* geforce_model_list[] = {
-    "quadro2pro",
     "geforce3",
     "geforcefx5900",
     "geforce6800",
+    "quadro2pro",
     NULL
   };
 
@@ -152,10 +152,7 @@ bool bx_geforce_c::init_vga_extension(void)
   Bit32s model_enum = (Bit8u)SIM->get_param_enum("model", base)->get();
 
   const char* model_string;
-  if (model_enum == QUADRO_2_PRO) {
-    BX_GEFORCE_THIS card_type = 0x15;
-    model_string = "Quadro2 Pro";
-  } else if (model_enum == GEFORCE_3) {
+  if (model_enum == GEFORCE_3) {
     BX_GEFORCE_THIS card_type = 0x20;
     model_string = "GeForce3 Ti 500";
   } else if (model_enum == GEFORCE_FX_5900) {
@@ -164,6 +161,9 @@ bool bx_geforce_c::init_vga_extension(void)
   } else if (model_enum == GEFORCE_6800) {
     BX_GEFORCE_THIS card_type = 0x40;
     model_string = "GeForce 6800 GT";
+  } else if (model_enum == QUADRO_2_PRO) {
+    BX_GEFORCE_THIS card_type = 0x15;
+    model_string = "Quadro2 Pro";
   } else {
     model_string = nullptr;
     BX_GEFORCE_THIS card_type = 0x00;
@@ -6142,13 +6142,13 @@ void bx_geforce_c::svga_init_pcihandlers(void)
   if (BX_GEFORCE_THIS card_type == 0x20) {
     devid = 0x0202;
     revid = 0xA3;
-  } else if (BX_GEFORCE_THIS card_type == 0x15) {
-    devid = 0x0153;
-    revid = 0xA4;
   } else if (BX_GEFORCE_THIS card_type == 0x35) {
     devid = 0x0331;
   } else if (BX_GEFORCE_THIS card_type == 0x40) {
     devid = 0x0045;
+  } else if (BX_GEFORCE_THIS card_type == 0x15) {
+    devid = 0x0153;
+    revid = 0xA4;
   }
   BX_GEFORCE_THIS init_pci_conf(0x10DE, devid, revid, 0x030000, 0x00, BX_PCI_INTA);
 
@@ -6163,7 +6163,7 @@ void bx_geforce_c::svga_init_pcihandlers(void)
     BX_GEFORCE_THIS init_bar_mem(1, BX_GEFORCE_THIS s.memsize, geforce_mem_read_handler,
                                  geforce_mem_write_handler);
   }
-  if ((BX_GEFORCE_THIS card_type != 0x35) && (BX_GEFORCE_THIS card_type != 0x15)) {
+  if (BX_GEFORCE_THIS card_type != 0x35) {
     if (BX_GEFORCE_THIS card_type == 0x20)
       BX_GEFORCE_THIS pci_conf[0x18] = 0x08;
     BX_GEFORCE_THIS init_bar_mem(2, BX_GEFORCE_THIS bar2_size, geforce_mem_read_handler,
