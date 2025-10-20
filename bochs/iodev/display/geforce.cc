@@ -62,6 +62,7 @@ static bx_geforce_c *theSvga = NULL;
 /* enumeration specifying which model of GeForce we are emulating */
 enum
 {
+    QUADRO_2_PRO,
     GEFORCE_3,
     GEFORCE_FX_5900,
     GEFORCE_6800,
@@ -72,6 +73,7 @@ enum
 void geforce_init_options(void)
 {
   static const char* geforce_model_list[] = {
+    "quadro2pro",
     "geforce3",
     "geforcefx5900",
     "geforce6800",
@@ -150,7 +152,10 @@ bool bx_geforce_c::init_vga_extension(void)
   Bit32s model_enum = (Bit8u)SIM->get_param_enum("model", base)->get();
 
   const char* model_string;
-  if (model_enum == GEFORCE_3) {
+  if (model_enum == QUADRO_2_PRO) {
+    BX_GEFORCE_THIS card_type = 0x15;
+    model_string = "Quadro 2 Pro";
+  } else if (model_enum == GEFORCE_3) {
     BX_GEFORCE_THIS card_type = 0x20;
     model_string = "GeForce3 Ti 500";
   } else if (model_enum == GEFORCE_FX_5900) {
@@ -339,6 +344,9 @@ void bx_geforce_c::svga_init_members()
     BX_GEFORCE_THIS bar2_size = 0x00080000;
     // Matches real hardware with exception of disabled TV out
     BX_GEFORCE_THIS straps0_primary_original = (0x7FF86C6B | 0x00000180);
+  } else if (BX_GEFORCE_THIS card_type == 0x15) {
+    BX_GEFORCE_THIS s.memsize = 64 * 1024 * 1024;
+    BX_GEFORCE_THIS straps0_primary_original = (0x7FF86C4B | 0x00000180);
   } else {
     if (BX_GEFORCE_THIS card_type == 0x35)
       BX_GEFORCE_THIS s.memsize = 128 * 1024 * 1024;
@@ -4952,6 +4960,7 @@ void bx_geforce_c::execute_d3d(gf_channel* ch, Bit32u cls, Bit32u method, Bit32u
              (method == 0x0c1 && cls >= 0x0497))
     ch->d3d_alpha_test_enable = param;
   else if ((method == 0x0cf && cls == 0x0097) ||
+           (method == 0x300 && cls == 0x0096) ||
            (method == 0x0c2 && cls >= 0x0497))
     ch->d3d_alpha_func = param;
   else if ((method == 0x0d0 && cls == 0x0097) ||
@@ -4961,21 +4970,26 @@ void bx_geforce_c::execute_d3d(gf_channel* ch, Bit32u cls, Bit32u method, Bit32u
            (method == 0x0c4 && cls >= 0x0497))
     ch->d3d_blend_enable = param;
   else if ((method == 0x0c2 && cls == 0x0097) ||
+           (method == 0x308 && cls == 0x0096) ||
            (method == 0x60f && cls >= 0x0497))
     ch->d3d_cull_face_enable = param;
   else if ((method == 0x0c3 && cls == 0x0097) ||
+           (method == 0x30c && cls == 0x0096) ||
            (method == 0x29d && cls >= 0x0497))
     ch->d3d_depth_test_enable = param;
   else if ((method == 0x0c5 && cls == 0x0097) ||
            (method == 0x516 && cls >= 0x0497)) {
     ch->d3d_lighting_enable = param;
-  } else if (method == 0x0d1 && cls == 0x0097) {
+  } else if ((method == 0x344 && cls == 0x0096) ||
+             (method == 0x0d1 && cls == 0x0097)) {
     ch->d3d_blend_sfactor_rgb = (Bit16u)param;
     ch->d3d_blend_sfactor_alpha = (Bit16u)param;
-  } else if (method == 0x0d2 && cls == 0x0097) {
+  } else if ((method == 0x348 && cls == 0x0096) ||
+             (method == 0x0d2 && cls == 0x0097)) {
     ch->d3d_blend_dfactor_rgb = (Bit16u)param;
     ch->d3d_blend_dfactor_alpha = (Bit16u)param;
-  } else if (method == 0x0d4 && cls == 0x0097) {
+  } else if ((method == 0x350 && cls == 0x0096) ||
+             (method == 0x0d4 && cls == 0x0097)) {
     ch->d3d_blend_equation_rgb = (Bit16u)param;
     ch->d3d_blend_equation_alpha = (Bit16u)param;
   } else if (method == 0x0c5 && cls >= 0x0497) {
@@ -4993,23 +5007,28 @@ void bx_geforce_c::execute_d3d(gf_channel* ch, Bit32u cls, Bit32u method, Bit32u
     ch->d3d_blend_color[1] = ((param >> 8) & 0xff) / 255.0f;
     ch->d3d_blend_color[2] = ((param >> 0) & 0xff) / 255.0f;
     ch->d3d_blend_color[3] = ((param >> 24) & 0xff) / 255.0f;
-  } else if ((method == 0x0d5 && cls == 0x0097) ||
+  } else if ((method == 0x354 && cls == 0x0096) ||
+             (method == 0x0d5 && cls == 0x0097) ||
              (method == 0x29b && cls >= 0x0497))
     ch->d3d_depth_func = param;
-  else if ((method == 0x0d7 && cls == 0x0097) ||
+  else if ((method == 0x35c && cls == 0x0096) ||
+           (method == 0x0d7 && cls == 0x0097) ||
            (method == 0x29c && cls >= 0x0497))
     ch->d3d_depth_write_enable = param;
-  else if ((method == 0x0df && cls == 0x0097) ||
+  else if ((method == 0x37c && cls == 0x0096) ||
+           (method == 0x0df && cls == 0x0097) ||
            (method == 0x0da && cls >= 0x0497))
     ch->d3d_shade_mode = param;
   else if (method == 0x0e5)
     ch->d3d_clip_min = u.param_float;
   else if (method == 0x0e6)
     ch->d3d_clip_max = u.param_float;
-  else if ((method == 0x0e7 && cls == 0x0097) ||
+  else if ((method == 0x39c && cls == 0x0096) ||
+           (method == 0x0e7 && cls == 0x0097) ||
            (method == 0x60c && cls >= 0x0497))
     ch->d3d_cull_face = param;
-  else if ((method == 0x0e8 && cls == 0x0097) ||
+  else if ((method == 0x3a0 && cls == 0x0096) ||
+           (method == 0x0e8 && cls == 0x0097) ||
            (method == 0x60d && cls >= 0x0497))
     ch->d3d_front_face = param;
   else if ((method == 0x0ef && cls == 0x0097) ||
@@ -5110,8 +5129,9 @@ void bx_geforce_c::execute_d3d(gf_channel* ch, Bit32u cls, Bit32u method, Bit32u
              (method >= 0x54c && method <= 0x54e && cls >= 0x0497)) {
     Bit32u i = method & 0x003;
     ch->d3d_diffuse_color[i] = u.param_float;
-  } else if (method >= 0x564 && method <= 0x58b && cls == 0x0097) {
-    Bit32u method_offset = method - 0x564;
+  } else if ((method >= 0x3c0 && method <= 0x3e0 && cls == 0x0096) ||
+             (method >= 0x564 && method <= 0x58b && cls == 0x0097)) {
+    Bit32u method_offset = method - (cls == 0x0097 ? 0x564 : 0x3c0);
     Bit32u texcoord_index = method_offset / 10;
     Bit32u texcoord_method = method_offset % 10;
     // TEXCOORD3_4F/4S may require special handling
@@ -6122,6 +6142,9 @@ void bx_geforce_c::svga_init_pcihandlers(void)
   if (BX_GEFORCE_THIS card_type == 0x20) {
     devid = 0x0202;
     revid = 0xA3;
+  } else if (BX_GEFORCE_THIS card_type == 0x15) {
+    devid = 0x0153;
+    revid = 0xA4;
   } else if (BX_GEFORCE_THIS card_type == 0x35) {
     devid = 0x0331;
   } else if (BX_GEFORCE_THIS card_type == 0x40) {
@@ -6131,10 +6154,16 @@ void bx_geforce_c::svga_init_pcihandlers(void)
 
   BX_GEFORCE_THIS init_bar_mem(0, GEFORCE_PNPMMIO_SIZE, geforce_mem_read_handler,
                                geforce_mem_write_handler);
-  BX_GEFORCE_THIS pci_conf[0x14] = 0x08;
-  BX_GEFORCE_THIS init_bar_mem(1, BX_GEFORCE_THIS s.memsize, geforce_mem_read_handler,
-                               geforce_mem_write_handler);
-  if (BX_GEFORCE_THIS card_type != 0x35) {
+  if (BX_GEFORCE_THIS card_type == 0x15) {
+    BX_GEFORCE_THIS pci_conf[0x14] = 0x08;
+    BX_GEFORCE_THIS init_bar_mem(1, (128 * 1024 * 1024), geforce_mem_read_handler,
+                                 geforce_mem_write_handler);
+  } else {
+    BX_GEFORCE_THIS pci_conf[0x14] = 0x08;
+    BX_GEFORCE_THIS init_bar_mem(1, BX_GEFORCE_THIS s.memsize, geforce_mem_read_handler,
+                                 geforce_mem_write_handler);
+  }
+  if ((BX_GEFORCE_THIS card_type != 0x35) && (BX_GEFORCE_THIS card_type != 0x15)) {
     if (BX_GEFORCE_THIS card_type == 0x20)
       BX_GEFORCE_THIS pci_conf[0x18] = 0x08;
     BX_GEFORCE_THIS init_bar_mem(2, BX_GEFORCE_THIS bar2_size, geforce_mem_read_handler,
@@ -6149,6 +6178,11 @@ void bx_geforce_c::svga_init_pcihandlers(void)
   if (BX_GEFORCE_THIS card_type == 0x20) {
     BX_GEFORCE_THIS pci_conf[0x2e] = 0x63;
     BX_GEFORCE_THIS pci_conf[0x2f] = 0x28;
+  } else if (BX_GEFORCE_THIS card_type == 0x15) {
+    BX_GEFORCE_THIS pci_conf[0x2c] = 0xDE;
+    BX_GEFORCE_THIS pci_conf[0x2d] = 0x10;
+    BX_GEFORCE_THIS pci_conf[0x2e] = 0x6D;
+    BX_GEFORCE_THIS pci_conf[0x2f] = 0x00;
   } else if (BX_GEFORCE_THIS card_type == 0x35) {
     BX_GEFORCE_THIS pci_conf[0x2e] = 0x7B;
     BX_GEFORCE_THIS pci_conf[0x2f] = 0x29;
@@ -6176,10 +6210,17 @@ void bx_geforce_c::svga_init_pcihandlers(void)
   BX_GEFORCE_THIS pci_conf[0x55] = 0x00;
   BX_GEFORCE_THIS pci_conf[0x56] = 0x00;
   BX_GEFORCE_THIS pci_conf[0x57] = 0x00;
-  BX_GEFORCE_THIS pci_conf[0x60] = 0x01;
-  BX_GEFORCE_THIS pci_conf[0x61] = 0x44;
-  BX_GEFORCE_THIS pci_conf[0x62] = 0x02;
-  BX_GEFORCE_THIS pci_conf[0x63] = 0x00;
+  if (BX_GEFORCE_THIS card_type == 0x15) {
+    BX_GEFORCE_THIS pci_conf[0x60] = 0x01;
+    BX_GEFORCE_THIS pci_conf[0x61] = 0x44;
+    BX_GEFORCE_THIS pci_conf[0x62] = 0x01;
+    BX_GEFORCE_THIS pci_conf[0x63] = 0x00;
+  } else {
+    BX_GEFORCE_THIS pci_conf[0x60] = 0x01;
+    BX_GEFORCE_THIS pci_conf[0x61] = 0x44;
+    BX_GEFORCE_THIS pci_conf[0x62] = 0x02;
+    BX_GEFORCE_THIS pci_conf[0x63] = 0x00;
+  }
 }
 
 void bx_geforce_c::pci_write_handler(Bit8u address, Bit32u value, unsigned io_len)
