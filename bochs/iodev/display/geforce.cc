@@ -154,7 +154,7 @@ bool bx_geforce_c::init_vga_extension(void)
   const char* model_string;
   if (model_enum == QUADRO_2_PRO) {
     BX_GEFORCE_THIS card_type = 0x15;
-    model_string = "Quadro 2 Pro";
+    model_string = "Quadro2 Pro";
   } else if (model_enum == GEFORCE_3) {
     BX_GEFORCE_THIS card_type = 0x20;
     model_string = "GeForce3 Ti 500";
