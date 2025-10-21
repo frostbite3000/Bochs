@@ -180,7 +180,7 @@ bool bx_atirage_c::init_vga_extension(void)
   DEV_register_iowrite_handler(this, svga_write_handler, 0x03C7, "atirage", 2);
   DEV_register_iowrite_handler(this, svga_write_handler, 0x03C8, "atirage", 2);
   DEV_register_iowrite_handler(this, svga_write_handler, 0x03C9, "atirage", 2);
-  BX_ATIRAGE_THIS init_iohandlers(svga_read_handler, svga_write_handler);
+  BX_ATIRAGE_THIS init_iohandlers(svga_read_handler, svga_write_handler, "atirage");
   BX_ATIRAGE_THIS svga_init_members();
   BX_ATIRAGE_THIS svga_init_pcihandlers();
   BX_INFO(("%s initialized", model));
