@@ -5858,6 +5858,9 @@ void bx_geforce_c::fifo_process(Bit32u chid)
       } else if (word == 0x00000000) {
         // Zero padding - common in NVIDIA FIFO processing
         BX_DEBUG(("fifo: zero padding (0x00000000)"));
+      } else if (word == 0x00ffffff) {
+        // NOP command - common in NVIDIA FIFO processing
+        BX_DEBUG(("fifo: NOP command (0x00ffffff)"));
       } else {
         BX_PANIC(("fifo: unexpected word 0x%08x", word));
       }
