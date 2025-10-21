@@ -37,7 +37,7 @@
 
 #define LOG_THIS BX_ATIRAGE_THIS
 
-#if BX_USE_atirage_SMF
+#if BX_USE_ATIRAGE_SMF
 #define VGA_READ(addr,len)       bx_vgacore_c::read_handler(theSvga,addr,len)
 #define VGA_WRITE(addr,val,len)  bx_vgacore_c::write_handler(theSvga,addr,val,len)
 #define SVGA_READ(addr,len)      svga_read_handler(theSvga,addr,len)
@@ -47,7 +47,7 @@
 #define VGA_WRITE(addr,val,len)  bx_vgacore_c::write(addr,val,len)
 #define SVGA_READ(addr,len)      svga_read(addr,len)
 #define SVGA_WRITE(addr,val,len) svga_write(addr,val,len)
-#endif // BX_USE_atirage_SMF
+#endif // BX_USE_ATIRAGE_SMF
 
 // register offsets
 static Bit32u CRTC_H_TOTAL_DISP  = 0x00;
@@ -782,9 +782,9 @@ void bx_atirage_c::update(void)
       BX_PANIC(("unknown bpp"));
 
     Bit32u iHeight = (BX_ATIRAGE_THIS crtc.reg[0] + 
-                     (((CRTC_H_TOTAL_DISP & 1) << 8) + 1) * 8;
+                     (CRTC_H_TOTAL_DISP & 1) << 8) + 1) * 8;
     Bit32u iWidth = (BX_ATIRAGE_THIS crtc.reg[6] + 
-                    (((CRTC_V_TOTAL_DISP & 7) << 8) + 1);
+                    (CRTC_V_TOTAL_DISP & 7) << 8) + 1);
 
     if (BX_ATIRAGE_THIS s.y_doublescan && iHeight > iWidth) {
       iWidth <<= 3;
