@@ -240,6 +240,7 @@
     <ClCompile Include="..\cpu\cpudb\intel\i486dx4.cc" />
     <ClCompile Include="..\cpu\cpudb\intel\p2_klamath.cc" />
     <ClCompile Include="..\cpu\cpudb\intel\p3_katmai.cc" />
+    <ClCompile Include="..\cpu\cpudb\intel\p3_coppermine.cc" />
     <ClCompile Include="..\cpu\cpudb\intel\p4_prescott_celeron_336.cc" />
     <ClCompile Include="..\cpu\cpudb\intel\p4_willamette.cc" />
     <ClCompile Include="..\cpu\cpudb\intel\pentium.cc" />
@@ -277,6 +278,7 @@
     <ClInclude Include="..\cpu\cpudb\intel\i486dx4.h" />
     <ClInclude Include="..\cpu\cpudb\intel\p2_klamath.h" />
     <ClInclude Include="..\cpu\cpudb\intel\p3_katmai.h" />
+    <ClInclude Include="..\cpu\cpudb\intel\p3_coppermine.h" />
     <ClInclude Include="..\cpu\cpudb\intel\p4_prescott_celeron_336.h" />
     <ClInclude Include="..\cpu\cpudb\intel\p4_willamette.h" />
     <ClInclude Include="..\cpu\cpudb\intel\pentium.h" />
