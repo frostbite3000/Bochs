@@ -783,15 +783,8 @@ void bx_atirage_c::update(void)
 
     Bit32u iHeight = (BX_ATIRAGE_THIS crtc.reg[0] + 
                      ((CRTC_H_TOTAL_DISP & 1) << 8) + 1) * 8;
-    Bit32u iWidth = (BX_ATIRAGE_THIS crtc.reg[6] | 
+    Bit32u iWidth = (BX_ATIRAGE_THIS crtc.reg[6] + 
                     ((CRTC_V_TOTAL_DISP & 7) << 8) + 1);
-
-    if (BX_ATIRAGE_THIS s.y_doublescan && iHeight > iWidth) {
-      iWidth <<= 3;
-      BX_ATIRAGE_THIS svga_double_width = true;
-    } else {
-      BX_ATIRAGE_THIS svga_double_width = false;
-    }
 
     if (iWidth != BX_ATIRAGE_THIS svga_xres ||
         iHeight != BX_ATIRAGE_THIS svga_yres ||
