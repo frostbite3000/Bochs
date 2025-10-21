@@ -315,7 +315,7 @@ void bx_atirage_c::redraw_area(unsigned x0, unsigned y0, unsigned width,
 {
   unsigned xti, yti, xt0, xt1, yt0, yt1;
 
-  if (!BX_ATIRAGE_THIS CRTC_GEN_CNTL) {
+  if (!CRTC_GEN_CNTL) {
     BX_ATIRAGE_THIS bx_vgacore_c::redraw_area(x0,y0,width,height);
     return;
   }
@@ -404,7 +404,7 @@ Bit8u bx_atirage_c::mem_read(bx_phy_address addr)
     return 0xFF;
   }
 
-  if (!BX_ATIRAGE_THIS CRTC_GEN_CNTL)
+  if (!CRTC_GEN_CNTL)
     return BX_ATIRAGE_THIS bx_vgacore_c::mem_read(addr);
 
   return 0xFF;
@@ -461,7 +461,7 @@ void bx_atirage_c::mem_write(bx_phy_address addr, Bit8u value)
     return;
   }
 
-  if (!BX_ATIRAGE_THIS CRTC_GEN_CNTL) {
+  if (!CRTC_GEN_CNTL) {
     BX_ATIRAGE_THIS bx_vgacore_c::mem_write(addr, value);
     return;
   }
@@ -782,9 +782,9 @@ void bx_atirage_c::update(void)
       BX_PANIC(("unknown bpp"));
 
     Bit32u iHeight = (BX_ATIRAGE_THIS crtc.reg[0] + 
-                     (CRTC_H_TOTAL_DISP & 1) << 8) + 1) * 8;
-    Bit32u iWidth = (BX_ATIRAGE_THIS crtc.reg[6] + 
-                    (CRTC_V_TOTAL_DISP & 7) << 8) + 1);
+                     ((CRTC_H_TOTAL_DISP & 1) << 8) + 1) * 8;
+    Bit32u iWidth = (BX_ATIRAGE_THIS crtc.reg[6] | 
+                    ((CRTC_V_TOTAL_DISP & 7) << 8) + 1);
 
     if (BX_ATIRAGE_THIS s.y_doublescan && iHeight > iWidth) {
       iWidth <<= 3;
