@@ -122,7 +122,6 @@ private:
   Bit32u crtc_offset;
   Bit32u crtc_dac_base;
   Bit32u clock_cntl;
-  Bit32u crtc_dac_base;
 
   bool svga_unlock_special;
   bool svga_needs_update_tile;

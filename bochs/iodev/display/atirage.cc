@@ -444,7 +444,7 @@ void bx_atirage_c::mem_write(bx_phy_address addr, Bit8u value)
     value32 = (value32 & mask) | (value << shift);
     if (shift == 24)
       BX_ERROR(("MMIO write to 0x%08x, value 0x%08x", offset & ~3, value32));
-    register_write(offset & ~3, value32);
+    register_write(offset & ~3, value32, io_len);
     return;
   }
 
@@ -457,7 +457,7 @@ void bx_atirage_c::mem_write(bx_phy_address addr, Bit8u value)
     value32 = (value32 & mask) | (value << shift);
     if (shift == 24)
       BX_ERROR(("register write to 0x%08x, value 0x%08x", offset & ~3, value32));
-    register_write(offset & ~3, value32);
+    register_write(offset & ~3, value32, io_len);
     return;
   }
 
@@ -749,7 +749,7 @@ void bx_atirage_c::update(void)
   unsigned width, height, pitch;
 
   Bit8u format = (BX_ATIRAGE_THIS crtc.reg[0x17] + 
-                 ((BX_ATIRAGE_THIS CRTC_GEN_CNTL & 7) << 8));
+                 ((CRTC_GEN_CNTL & 7) << 8));
 
   if (format == 0x00) {
     BX_ATIRAGE_THIS bx_vgacore_c::update();
@@ -761,7 +761,7 @@ void bx_atirage_c::update(void)
     Bit32u iTopOffset =
        BX_ATIRAGE_THIS crtc.reg[0x0d] |
       (BX_ATIRAGE_THIS crtc.reg[0x0c] << 8) |
-      (BX_ATIRAGE_THIS CRTC_OFF_PITCH & 0xF) << 16;
+      (CRTC_OFF_PITCH & 0xF) << 16;
     iTopOffset <<= 2;
     iTopOffset += BX_ATIRAGE_THIS crtc_offset;
 
@@ -782,9 +782,9 @@ void bx_atirage_c::update(void)
       BX_PANIC(("unknown bpp"));
 
     Bit32u iHeight = (BX_ATIRAGE_THIS crtc.reg[0] + 
-                     (((BX_ATIRAGE_THIS CRTC_H_TOTAL_DISP & 1) << 8) + 1) * 8;
+                     (((CRTC_H_TOTAL_DISP & 1) << 8) + 1) * 8;
     Bit32u iWidth = (BX_ATIRAGE_THIS crtc.reg[6] + 
-                    (((BX_ATIRAGE_THIS CRTC_V_TOTAL_DISP & 7) << 8) + 1);
+                    (((CRTC_V_TOTAL_DISP & 7) << 8) + 1);
 
     if (BX_ATIRAGE_THIS s.y_doublescan && iHeight > iWidth) {
       iWidth <<= 3;
@@ -1271,11 +1271,11 @@ Bit32u bx_atirage_c::register_read(Bit32u address, unsigned io_len)
 {
   Bit32u value = 0xFFFFFFFF;
 
-  if (address == BX_ATIRAGE_THIS CONFIG_CHIP_ID)
+  if (address == CONFIG_CHIP_ID)
     value = 0x9a004755;
-  else if (address == BX_ATIRAGE_THIS CRTC_DAC_BASE)
+  else if (address == CRTC_DAC_BASE)
     value = BX_ATIRAGE_THIS crtc_dac_base;
-  else if (address == BX_ATIRAGE_THIS CLOCK_CNTL)
+  else if (address == CLOCK_CNTL)
     value = BX_ATIRAGE_THIS clock_cntl;
 
   return value;
@@ -1289,15 +1289,15 @@ void bx_atirage_c::write_handler(void *this_ptr, Bit32u address, Bit32u value, u
 
 void bx_atirage_c::register_write(Bit32u address, Bit32u value, unsigned io_len)
 {
-  if ((address >= BX_ATIRAGE_THIS CONFIG_CHIP_ID) && (address <= (BX_ATIRAGE_THIS CONFIG_CHIP_ID + 3)))
+  if ((address >= CONFIG_CHIP_ID) && (address <= (CONFIG_CHIP_ID + 3)))
   {
 	 return;
   }
 
-  if (address == BX_ATIRAGE_THIS CRTC_OFF_PITCH) {
+  if (address == CRTC_OFF_PITCH) {
     BX_ATIRAGE_THIS crtc_offset = value;
     BX_ATIRAGE_THIS svga_needs_update_mode = 1;
-  } else if (address == BX_ATIRAGE_THIS CRTC_GEN_CNTL) {
+  } else if (address == CRTC_GEN_CNTL) {
     BX_ATIRAGE_THIS crtc_gen_cntl = value;
     BX_ATIRAGE_THIS svga_needs_update_mode = 1;
   }
