@@ -46,6 +46,7 @@ extern "C" {
 #define BX_PLUGIN_VGA       "vga"
 #define BX_PLUGIN_CIRRUS    "svga_cirrus"
 #define BX_PLUGIN_GEFORCE   "geforce"
+#define BX_PLUGIN_ATIRAGE   "atirage"
 #define BX_PLUGIN_FLOPPY    "floppy"
 #define BX_PLUGIN_PARALLEL  "parallel"
 #define BX_PLUGIN_SERIAL    "serial"
@@ -443,6 +444,7 @@ PLUGIN_ENTRY_FOR_MODULE(iodebug);
 PLUGIN_ENTRY_FOR_MODULE(ioapic);
 PLUGIN_ENTRY_FOR_MODULE(hpet);
 PLUGIN_ENTRY_FOR_MODULE(voodoo);
+PLUGIN_ENTRY_FOR_MODULE(atirage);
 // config interface plugins
 PLUGIN_ENTRY_FOR_MODULE(textconfig);
 PLUGIN_ENTRY_FOR_MODULE(win32config);

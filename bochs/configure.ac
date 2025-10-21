@@ -1967,6 +1967,24 @@ AC_ARG_ENABLE(geforce,
     ]
   )
 
+AC_MSG_CHECKING(for ATI Rage emulation)
+AC_ARG_ENABLE(atirage,
+  AS_HELP_STRING([--enable-atirage], [enable ATI Rage emulation (no)]),
+  [if test "$enableval" = yes; then
+    AC_MSG_RESULT(yes)
+    AC_DEFINE(BX_SUPPORT_ATIRAGE, 1)
+    DISPLAY_OBJS="$DISPLAY_OBJS atirage.o"
+    DISPLAY_DLL_TARGETS="$DISPLAY_DLL_TARGETS bx_atirage.dll"
+   else
+    AC_MSG_RESULT(no)
+    AC_DEFINE(BX_SUPPORT_ATIRAGE, 0)
+   fi],
+  [
+    AC_MSG_RESULT(no)
+    AC_DEFINE(BX_SUPPORT_ATIRAGE, 0)
+    ]
+  )
+
 AC_MSG_CHECKING(for 3dfx Voodoo Graphics emulation)
 AC_ARG_ENABLE(voodoo,
   AS_HELP_STRING([--enable-voodoo], [enable 3dfx Voodoo Graphics emulation (no)]),
