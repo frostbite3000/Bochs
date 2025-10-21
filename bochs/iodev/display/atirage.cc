@@ -1313,7 +1313,8 @@ void bx_atirage_c::register_write(Bit32u address, Bit32u value, unsigned io_len)
 void bx_atirage_c::svga_init_pcihandlers(void)
 {
     Bit8u devfunc = 0x00;
-    DEV_register_pci_handlers2(BX_ATIRAGE_THIS_PTR, &devfunc, BX_PLUGIN_ATIRAGE, "ATI Rage PCI", true);
+    bool is_agp = SIM->is_agp_device(BX_PLUGIN_ATIRAGE);
+    DEV_register_pci_handlers2(BX_ATIRAGE_THIS_PTR, &devfunc, BX_PLUGIN_ATIRAGE, "ATI Rage PCI", is_agp);
     BX_ATIRAGE_THIS init_pci_conf(0x1002, 0x4755, 0x9a, 0x030000, 0x00, BX_PCI_INTA);
 
     BX_ATIRAGE_THIS init_bar_mem(0, 0x1000000, atirage_mem_read_handler, atirage_mem_write_handler);
