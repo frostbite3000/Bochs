@@ -253,6 +253,9 @@ void BX_CPU_C::SvmExitLoadHostState(SVM_HOST_STATE *host)
     parse_selector(BX_CPU_THIS_PTR sregs[n].selector.value, &BX_CPU_THIS_PTR sregs[n].selector);
   }
 
+  // set flags before control registers to avoid false PANIC inside the setEFlags
+  setEFlags(host->eflags & ~EFlagsVMMask); // ignore saved copy of EFLAGS.VM
+
   BX_CPU_THIS_PTR gdtr = host->gdtr;
   BX_CPU_THIS_PTR idtr = host->idtr;
 
@@ -271,8 +274,6 @@ void BX_CPU_C::SvmExitLoadHostState(SVM_HOST_STATE *host)
   BX_CPU_THIS_PTR msr.pat = host->pat_msr;
 
   BX_CPU_THIS_PTR dr7.set32(0x00000400);
-
-  setEFlags(host->eflags & ~EFlagsVMMask); // ignore saved copy of EFLAGS.VM
 
   RIP = BX_CPU_THIS_PTR prev_rip = host->rip;
   RSP = host->rsp;
@@ -345,7 +346,7 @@ bool BX_CPU_C::SvmEnterLoadCheckControls(SVM_CONTROLS *ctrls)
 
   if (! SVM_INTERCEPT(SVM_INTERCEPT1_VMRUN)) {
     BX_ERROR(("VMRUN: VMRUN intercept bit is not set!"));
-    return 0;
+    return false;
   }
 
   ctrls->exceptions_intercept = vmcb_read32(SVM_CONTROL32_INTERCEPT_EXCEPTIONS);
@@ -354,20 +355,20 @@ bool BX_CPU_C::SvmEnterLoadCheckControls(SVM_CONTROLS *ctrls)
   ctrls->iopm_base = PPFOf(vmcb_read64(SVM_CONTROL64_IOPM_BASE_PHY_ADDR));
   if (! IsValidPhyAddr(ctrls->iopm_base)) {
     BX_ERROR(("VMRUN: invalid IOPM Base Address !"));
-    return 0;
+    return false;
   }
 
   // force 4K page alignment
   ctrls->msrpm_base = PPFOf(vmcb_read64(SVM_CONTROL64_MSRPM_BASE_PHY_ADDR));
   if (! IsValidPhyAddr(ctrls->msrpm_base)) {
     BX_ERROR(("VMRUN: invalid MSRPM Base Address !"));
-    return 0;
+    return false;
   }
 
   Bit32u guest_asid = vmcb_read32(SVM_CONTROL32_GUEST_ASID);
   if (guest_asid == 0) {
     BX_ERROR(("VMRUN: attempt to run guest with host ASID !"));
-    return 0;
+    return false;
   }
 
   ctrls->v_tpr = vmcb_read8(SVM_CONTROL_VTPR);
@@ -394,27 +395,27 @@ bool BX_CPU_C::SvmEnterLoadCheckControls(SVM_CONTROLS *ctrls)
   if (ctrls->nested_paging) {
     if (! BX_CPU_THIS_PTR cr0.get_PG()) {
       BX_ERROR(("VMRUN: attempt to enter nested paging mode when host paging is disabled !"));
-      return 0;
+      return false;
     }
 
     Bit64u guest_pat = vmcb_read64(SVM_GUEST_PAT);
     if (! isValidMSR_PAT(guest_pat)) {
       BX_ERROR(("VMRUN: invalid memory type in guest PAT_MSR !"));
-      return 0;
+      return false;
     }
 
     ctrls->ncr3 = vmcb_read64(SVM_CONTROL64_NESTED_PAGING_HOST_CR3);
     if (long_mode()) {
       if (! IsValidPhyAddr(ctrls->ncr3)) {
         BX_ERROR(("VMRUN(): NCR3 reserved bits set !"));
-        return 0;
+        return false;
       }
     }
 
     BX_DEBUG(("VMRUN: Starting Nested Paging Mode !"));
   }
 
-  return 1;
+  return true;
 }
 
 bool BX_CPU_C::SvmEnterLoadCheckGuestState(void)
@@ -432,25 +433,25 @@ bool BX_CPU_C::SvmEnterLoadCheckGuestState(void)
   Bit32u efer_hi = vmcb_read32(SVM_GUEST_EFER_MSR_HI);
   if (efer_hi) {
     BX_ERROR(("VMRUN: Guest EFER[63:32] is not zero"));
-    return 0;
+    return false;
   }
   guest.efer.set32(efer_lo);
 
   if (guest.efer.get32() & ~BX_CPU_THIS_PTR efer_suppmask) {
     BX_ERROR(("VMRUN: Guest EFER reserved bits set"));
-    return 0;
+    return false;
   }
 
   if (! guest.efer.get_SVME()) {
     BX_ERROR(("VMRUN: Guest EFER.SVME = 0"));
-    return 0;
+    return false;
   }
 
   Bit32u cr0_lo = vmcb_read32(SVM_GUEST_CR0);
   Bit32u cr0_hi = vmcb_read32(SVM_GUEST_CR0_HI);
   if (cr0_hi) {
     BX_ERROR(("VMRUN: Guest CR0[63:32] is not zero"));
-    return 0;
+    return false;
   }
   guest.cr0.set32(cr0_lo);
 
@@ -464,26 +465,26 @@ bool BX_CPU_C::SvmEnterLoadCheckGuestState(void)
   Bit32u cr4_hi = vmcb_read32(SVM_GUEST_CR4_HI);
   if (cr4_hi) {
     BX_ERROR(("VMRUN: Guest CR4[63:32] is not zero"));
-    return 0;
+    return false;
   }
   guest.cr4.set32(cr4_lo);
 
   if (guest.cr4.get32() & ~BX_CPU_THIS_PTR cr4_suppmask) {
     BX_ERROR(("VMRUN: Guest CR4 reserved bits set"));
-    return 0;
+    return false;
   }
 
   Bit32u dr6_hi = vmcb_read32(SVM_GUEST_DR6_HI);
   if (dr6_hi) {
     BX_ERROR(("VMRUN: Guest DR6[63:32] is not zero"));
-    return 0;
+    return false;
   }
   guest.dr6 = vmcb_read32(SVM_GUEST_DR6);
 
   Bit32u dr7_hi = vmcb_read32(SVM_GUEST_DR7_HI);
   if (dr7_hi) {
     BX_ERROR(("VMRUN: Guest DR7[63:32] is not zero"));
-    return 0;
+    return false;
   }
   guest.dr7 = vmcb_read32(SVM_GUEST_DR7);
 
@@ -495,7 +496,7 @@ bool BX_CPU_C::SvmEnterLoadCheckGuestState(void)
 
   if (guest.sregs[BX_SEG_REG_CS].cache.u.segment.d_b && guest.sregs[BX_SEG_REG_CS].cache.u.segment.l) {
     BX_ERROR(("VMRUN: VMCB CS.D_B/L mismatch"));
-    return 0;
+    return false;
   }
 
   if (! guest.cr0.get_PE() || (guest.eflags & EFlagsVMMask) != 0)
@@ -544,11 +545,11 @@ bool BX_CPU_C::SvmEnterLoadCheckGuestState(void)
 
   if (! check_CR0(guest.cr0.get32())) {
     BX_ERROR(("SVM: VMRUN CR0 is broken !"));
-    return 0;
+    return false;
   }
   if (! check_CR4(guest.cr4.get32())) {
     BX_ERROR(("SVM: VMRUN CR4 is broken !"));
-    return 0;
+    return false;
   }
 
   BX_CPU_THIS_PTR cr0.set32(guest.cr0.get32());
@@ -563,7 +564,7 @@ bool BX_CPU_C::SvmEnterLoadCheckGuestState(void)
     if (BX_CPU_THIS_PTR cr0.get_PG() && BX_CPU_THIS_PTR cr4.get_PAE() && !long_mode()) {
       if (! CheckPDPTR(BX_CPU_THIS_PTR cr3)) {
         BX_ERROR(("SVM: VMRUN PDPTR check failed !"));
-        return 0;
+        return false;
       }
     }
   }
@@ -609,7 +610,7 @@ bool BX_CPU_C::SvmEnterLoadCheckGuestState(void)
 
   BX_INSTR_TLB_CNTRL(BX_CPU_ID, BX_INSTR_CONTEXT_SWITCH, 0);
 
-  return 1;
+  return true;
 }
 
 void BX_CPU_C::Svm_Vmexit(int reason, Bit64u exitinfo1, Bit64u exitinfo2)
@@ -622,36 +623,38 @@ void BX_CPU_C::Svm_Vmexit(int reason, Bit64u exitinfo1, Bit64u exitinfo2)
       BX_PANIC(("PANIC: VMEXIT %d not in SVM guest mode !", reason));
   }
 
-  if (BX_SUPPORT_SVM_EXTENSION(BX_CPUID_SVM_NRIP_SAVE))
-    vmcb_write64(SVM_CONTROL64_NRIP, RIP);
+  if (reason != SVM_VMEXIT_INVALID) {
+    if (BX_SUPPORT_SVM_EXTENSION(BX_CPUID_SVM_NRIP_SAVE))
+      vmcb_write64(SVM_CONTROL64_NRIP, RIP);
+
+    if (BX_SUPPORT_SVM_EXTENSION(BX_CPUID_SVM_DECODE_ASSIST)) {
+      //
+      // In the case of a Nested #PF or intercepted #PF, guest instruction bytes at
+      // guest CS:RIP are stored into the 16-byte wide field Guest Instruction Bytes.
+      // Up to 15 bytes are recorded, read from guest CS:RIP. The number of bytes
+      // fetched is put into the first byte of this field. Zero indicates that no
+      // bytes were fetched.
+      //
+      // This field is filled in only during data page faults. Instruction-fetch
+      // page faults provide no additional information. All other intercepts clear
+      // bits 0:7 in this field to zero.
+      //
+
+      if ((reason == SVM_VMEXIT_PF_EXCEPTION || reason == SVM_VMEXIT_NPF) && !(exitinfo1 & 0x10))
+      {
+        // TODO
+      }
+      else {
+        vmcb_write8(SVM_CONTROL64_GUEST_INSTR_BYTES, 0);
+      }
+    }
+  }
 
   // VMEXITs are FAULT-like: restore RIP/RSP to value before VMEXIT occurred
   RIP = BX_CPU_THIS_PTR prev_rip;
   if (BX_CPU_THIS_PTR speculative_rsp)
     RSP = BX_CPU_THIS_PTR prev_rsp;
   BX_CPU_THIS_PTR speculative_rsp = false;
-
-  if (BX_SUPPORT_SVM_EXTENSION(BX_CPUID_SVM_DECODE_ASSIST)) {
-    //
-    // In the case of a Nested #PF or intercepted #PF, guest instruction bytes at
-    // guest CS:RIP are stored into the 16-byte wide field Guest Instruction Bytes.
-    // Up to 15 bytes are recorded, read from guest CS:RIP. The number of bytes
-    // fetched is put into the first byte of this field. Zero indicates that no
-    // bytes were fetched.
-    //
-    // This field is filled in only during data page faults. Instruction-fetch
-    // page faults provide no additional information. All other intercepts clear
-    // bits 0:7 in this field to zero.
-    //
-
-    if ((reason == SVM_VMEXIT_PF_EXCEPTION || reason == SVM_VMEXIT_NPF) && !(exitinfo1 & 0x10))
-    {
-      // TODO
-    }
-    else {
-      vmcb_write8(SVM_CONTROL64_GUEST_INSTR_BYTES, 0);
-    }
-  }
 
   mask_event(BX_EVENT_SVM_VIRQ_PENDING);
 
@@ -683,7 +686,8 @@ void BX_CPU_C::Svm_Vmexit(int reason, Bit64u exitinfo1, Bit64u exitinfo2)
   //
   // Step 1: Save guest state in the VMCB
   //
-  SvmExitSaveGuestState();
+  if (reason != SVM_VMEXIT_INVALID)
+    SvmExitSaveGuestState();
 
   //
   // Step 2:
@@ -726,8 +730,7 @@ bool BX_CPU_C::SvmInjectEvents(void)
 
   switch(type) {
     case BX_NMI:
-      mask_event(BX_EVENT_NMI);
-      BX_CPU_THIS_PTR EXT = 1;
+      BX_CPU_THIS_PTR EXT = 1; // injected NMI doesn't mask delivery of further NMIs
       vector = 2;
       break;
 
@@ -738,6 +741,10 @@ bool BX_CPU_C::SvmInjectEvents(void)
     case BX_HARDWARE_EXCEPTION:
       if (vector == 2 || vector > 31) {
         BX_ERROR(("SvmInjectEvents: invalid vector %d for HW exception", vector));
+        return false;
+      }
+      if ((vector == BX_BR_EXCEPTION || vector == BX_OF_EXCEPTION) && long64_mode()) {
+        BX_ERROR(("SvmInjectEvents: invalid vector %d for 64-bit mode", vector));
         return false;
       }
       if (vector == BX_BP_EXCEPTION || vector == BX_OF_EXCEPTION) {
