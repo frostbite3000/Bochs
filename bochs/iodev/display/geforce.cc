@@ -154,7 +154,7 @@ bool bx_geforce_c::init_vga_extension(void)
   const char* model_string;
   if (model_enum == GEFORCE_3) {
     BX_GEFORCE_THIS card_type = 0x20;
-    model_string = "GeForce3 Ti 500";
+    model_string = "GeForce3";
   } else if (model_enum == GEFORCE_FX_5900) {
     BX_GEFORCE_THIS card_type = 0x35;
     model_string = "GeForce FX 5900";
@@ -342,14 +342,10 @@ void bx_geforce_c::svga_init_members()
   if (BX_GEFORCE_THIS card_type == 0x20) {
     BX_GEFORCE_THIS s.memsize = 64 * 1024 * 1024;
     BX_GEFORCE_THIS bar2_size = 0x00080000;
-    // Matches real hardware with exception of disabled TV out
-    BX_GEFORCE_THIS straps0_primary_original = (0x7FF86C6B | 0x00000180);
+    BX_GEFORCE_THIS straps0_primary_original = (0x7FF86C4B | 0x00000180);
   } else if (BX_GEFORCE_THIS card_type == 0x15) {
     BX_GEFORCE_THIS s.memsize = 64 * 1024 * 1024;
     BX_GEFORCE_THIS straps0_primary_original = (0x7FF86C4B | 0x00000180);
-    // Initialize RAMHT and RAMFC for NV15 with default values
-    BX_GEFORCE_THIS fifo_ramht = 0x00010000; // Default RAMHT address and size
-    BX_GEFORCE_THIS fifo_ramfc = 0x00020000; // Default RAMFC address
   } else {
     if (BX_GEFORCE_THIS card_type == 0x35)
       BX_GEFORCE_THIS s.memsize = 128 * 1024 * 1024;
@@ -2151,19 +2147,6 @@ Bit32u bx_geforce_c::ramfc_read32(Bit32u chid, Bit32u offset)
 
 void bx_geforce_c::ramht_lookup(Bit32u handle, Bit32u chid, Bit32u* object, Bit8u* engine)
 {
-  // Check if RAMHT is properly initialized
-  if (BX_GEFORCE_THIS fifo_ramht == 0) {
-    BX_DEBUG(("ramht_lookup: RAMHT not initialized, using fallback for handle 0x%08x", handle));
-    // For NV15, provide fallback values when RAMHT is not initialized
-    if (object) {
-      *object = 0x10000; // Default object address
-    }
-    if (engine) {
-      *engine = 0x01; // Default engine
-    }
-    return;
-  }
-
   Bit32u ramht_addr = (BX_GEFORCE_THIS fifo_ramht & 0xFFF) << 8;
   Bit32u ramht_bits = ((BX_GEFORCE_THIS fifo_ramht >> 16) & 0xFF) + 9;
   Bit32u ramht_size = 1 << ramht_bits << 3;
@@ -2209,18 +2192,6 @@ void bx_geforce_c::ramht_lookup(Bit32u handle, Bit32u chid, Bit32u* object, Bit8
     if (it >= ramht_size)
       it = 0;
   } while (it != hash);
-
-  // For NV15, provide fallback values instead of panicking
-  if (BX_GEFORCE_THIS card_type == 0x15) {
-    BX_DEBUG(("ramht_lookup: NV15 fallback for handle 0x%08x (chid %d)", handle, chid));
-    if (object) {
-      *object = 0x10000; // Default object address
-    }
-    if (engine) {
-      *engine = 0x01; // Default engine
-    }
-    return;
-  }
 
   BX_PANIC(("ramht_lookup failed for 0x%08x", handle));
 }
@@ -4899,40 +4870,10 @@ void bx_geforce_c::execute_d3d(gf_channel* ch, Bit32u cls, Bit32u method, Bit32u
   } u;
   u.param_integer = param;
 
-  if (cls == 0x0096) {
-    BX_DEBUG(("NV15_3D: method 0x%03x, param 0x%08x", method, param));
-  }
-
   if (method == 0x000) {
     // There may be better place for initialization
     ch->d3d_window_offset_x = 0;
     ch->d3d_window_offset_y = 0;
-    
-    // Initialize NV15_3D specific fields
-    if (cls == 0x0096) {
-      ch->nv15_rt_horiz = 0;
-      ch->nv15_rt_vert = 0;
-      ch->nv15_rt_format = 0;
-      ch->nv15_color_mask_enable = 0;
-      ch->nv15_zclear_enable = 0;
-      ch->nv15_zclear_value = 0;
-      ch->nv15_viewport_horizontal = 0;
-      ch->nv15_viewport_vertical = 0;
-      for (int i = 0; i < 4; i++) {
-        ch->nv15_viewport_offset[i] = 0.0f;
-        ch->nv15_viewport_scale[i] = 1.0f;
-      }
-      for (int i = 0; i < 16; i++) {
-        ch->nv15_texture_offset[i] = 0;
-        ch->nv15_texture_format[i] = 0;
-        ch->nv15_texture_address[i] = 0;
-        ch->nv15_texture_control0[i] = 0;
-        ch->nv15_texture_control1[i] = 0;
-        ch->nv15_texture_filter[i] = 0;
-        ch->nv15_texture_image_rect[i] = 0;
-        ch->nv15_texture_palette[i] = 0;
-      }
-    }
     for (int j = 0; j < 4; j++)
       ch->d3d_diffuse_color[j] = 1.0f;
     for (int j = 0; j < 16; j++) {
@@ -5375,165 +5316,7 @@ void bx_geforce_c::execute_d3d(gf_channel* ch, Bit32u cls, Bit32u method, Bit32u
     ch->d3d_color_clear_value = param;
   } else if (method == 0x765) {
     ch->d3d_clear_surface = param;
-  } else if ((method >= 0x200 && method <= 0x208 && cls == 0x0096)) {
-    // NV10_3D render target methods
-    switch (method) {
-      case 0x200: // RT_HORIZ
-        ch->nv15_rt_horiz = param;
-        ch->d3d_clip_horizontal = param;
-        break;
-      case 0x204: // RT_VERT  
-        ch->nv15_rt_vert = param;
-        ch->d3d_clip_vertical = param;
-        break;
-      case 0x208: // RT_FORMAT
-        ch->nv15_rt_format = param;
-        ch->d3d_surface_format = param;
-        break;
-    }
-  } else if ((method >= 0x290 && method <= 0x2ff && cls == 0x0096)) {
-    // NV10_3D additional methods
-    switch (method) {
-      case 0x290: // UNK0290
-        break;
-      case 0x2bc: // COLOR_MASK_ENABLE (NV17_3D)
-        ch->nv15_color_mask_enable = param;
-        ch->d3d_blend_enable = param;
-        break;
-    }
-  } else if ((method >= 0x3f0 && method <= 0x3ff && cls == 0x0096)) {
-    // NV10_3D control methods
-    switch (method) {
-      case 0x3f0: // UNK03F0
-        break;
-      case 0x3f4: // UNK03F4
-        break;
-      case 0x3f8: // ZCLEAR_ENABLE (NV17_3D)
-        ch->nv15_zclear_enable = param;
-        ch->d3d_depth_write_enable = param;
-        break;
-      case 0x3fc: // ZCLEAR_VALUE (NV17_3D)
-        ch->nv15_zclear_value = param;
-        ch->d3d_zstencil_clear_value = param;
-        break;
-    }
-  } else if ((method >= 0x400 && method <= 0x4ff && cls == 0x0096)) {
-    // NV10_3D texture and lighting methods
-    Bit32u method_offset = method - 0x400;
-    Bit32u texture_index = method_offset >> 4;
-    Bit32u texture_method = method_offset & 0xf;
-    
-    if (texture_index < 16) {
-      switch (texture_method) {
-        case 0x0: // TEXTURE_OFFSET
-          ch->nv15_texture_offset[texture_index] = param;
-          ch->d3d_texture_offset[texture_index] = param;
-          break;
-        case 0x1: // TEXTURE_FORMAT
-          ch->nv15_texture_format[texture_index] = param;
-          ch->d3d_texture_format[texture_index] = param;
-          break;
-        case 0x2: // TEXTURE_ADDRESS
-          ch->nv15_texture_address[texture_index] = param;
-          ch->d3d_texture_address[texture_index] = param;
-          break;
-        case 0x3: // TEXTURE_CONTROL0
-          ch->nv15_texture_control0[texture_index] = param;
-          ch->d3d_texture_control0[texture_index] = param;
-          break;
-        case 0x4: // TEXTURE_CONTROL1
-          ch->nv15_texture_control1[texture_index] = param;
-          ch->d3d_texture_control1[texture_index] = param;
-          break;
-        case 0x5: // TEXTURE_FILTER
-          ch->nv15_texture_filter[texture_index] = param;
-          ch->d3d_texture_filter[texture_index] = param;
-          break;
-        case 0x6: // TEXTURE_IMAGE_RECT
-          ch->nv15_texture_image_rect[texture_index] = param;
-          ch->d3d_texture_image_rect[texture_index] = param;
-          break;
-        case 0x7: // TEXTURE_PALETTE
-          ch->nv15_texture_palette[texture_index] = param;
-          ch->d3d_texture_palette[texture_index] = param;
-          break;
-      }
-    }
-  } else if ((method >= 0x500 && method <= 0x5ff && cls == 0x0096)) {
-    // NV10_3D vertex and transform methods
-    Bit32u method_offset = method - 0x500;
-    Bit32u attrib_index = method_offset >> 2;
-    Bit32u comp_index = method_offset & 0x3;
-    
-    if (attrib_index < 16) {
-      ch->d3d_vertex_data[ch->d3d_vertex_index][attrib_index][comp_index] = u.param_float;
-      if (comp_index == 3 && attrib_index == 0)
-        d3d_process_vertex(ch);
-    }
-  } else if ((method >= 0x600 && method <= 0x6ff && cls == 0x0096)) {
-    // NV10_3D shader and program methods
-    Bit32u method_offset = method - 0x600;
-    Bit32u shader_index = method_offset >> 2;
-    Bit32u shader_method = method_offset & 0x3;
-    
-    switch (method) {
-      case 0x600: // TRANSFORM_PROGRAM_LOAD
-        ch->d3d_transform_program_load = param;
-        break;
-      case 0x601: // TRANSFORM_PROGRAM_START
-        ch->d3d_transform_program_start = param;
-        break;
-      case 0x602: // TRANSFORM_CONSTANT_LOAD
-        ch->d3d_transform_constant_load = param;
-        break;
-      case 0x603: // TRANSFORM_EXECUTION_MODE
-        ch->d3d_transform_execution_mode = param;
-        break;
-    }
-  } else if ((method >= 0x700 && method <= 0x7ff && cls == 0x0096)) {
-    // NV10_3D advanced methods
-    switch (method) {
-      case 0x700: // VIEWPORT_HORIZONTAL
-        ch->nv15_viewport_horizontal = param;
-        ch->d3d_viewport_horizontal = param;
-        break;
-      case 0x704: // VIEWPORT_VERTICAL
-        ch->nv15_viewport_vertical = param;
-        ch->d3d_viewport_vertical = param;
-        break;
-      case 0x708: // VIEWPORT_OFFSET_X
-        ch->nv15_viewport_offset[0] = u.param_float;
-        ch->d3d_viewport_offset[0] = u.param_float;
-        break;
-      case 0x70c: // VIEWPORT_OFFSET_Y
-        ch->nv15_viewport_offset[1] = u.param_float;
-        ch->d3d_viewport_offset[1] = u.param_float;
-        break;
-      case 0x710: // VIEWPORT_OFFSET_Z
-        ch->nv15_viewport_offset[2] = u.param_float;
-        ch->d3d_viewport_offset[2] = u.param_float;
-        break;
-      case 0x714: // VIEWPORT_OFFSET_W
-        ch->nv15_viewport_offset[3] = u.param_float;
-        ch->d3d_viewport_offset[3] = u.param_float;
-        break;
-      case 0x718: // VIEWPORT_SCALE_X
-        ch->nv15_viewport_scale[0] = u.param_float;
-        ch->d3d_viewport_scale[0] = u.param_float;
-        break;
-      case 0x71c: // VIEWPORT_SCALE_Y
-        ch->nv15_viewport_scale[1] = u.param_float;
-        ch->d3d_viewport_scale[1] = u.param_float;
-        break;
-      case 0x720: // VIEWPORT_SCALE_Z
-        ch->nv15_viewport_scale[2] = u.param_float;
-        ch->d3d_viewport_scale[2] = u.param_float;
-        break;
-      case 0x724: // VIEWPORT_SCALE_W
-        ch->nv15_viewport_scale[3] = u.param_float;
-        ch->d3d_viewport_scale[3] = u.param_float;
-        break;
-    }
+    d3d_clear_surface(ch);
   } else if (method == 0x7a5) {
     ch->d3d_transform_execution_mode = param;
   } else if (method == 0x7a7) {
@@ -5720,8 +5503,6 @@ bool bx_geforce_c::execute_command(Bit32u chid, Bit32u subc, Bit32u method, Bit3
         execute_tfc(ch, method, param);
       else if (cls8 == 0x89)
         execute_sifm(ch, method, param);
-      else if (cls8 == 0x96 && BX_GEFORCE_THIS card_type == 0x15)
-        execute_d3d(ch, cls, method, param);
       else if (cls8 == 0x97)
         execute_d3d(ch, cls, method, param);
       if (ch->notify_pending) {
@@ -5852,15 +5633,6 @@ void bx_geforce_c::fifo_process(Bit32u chid)
         ch->dma_state.subc = (word >> 13) & 7;
         ch->dma_state.mcnt = (word >> 18) & 0x7ff;
         ch->dma_state.ni = word & 0x40000000;
-      } else if (word == 0xffffffff) {
-        // NOP command - common in NVIDIA FIFO processing
-        BX_DEBUG(("fifo: NOP command (0xffffffff)"));
-      } else if (word == 0x00000000) {
-        // Zero padding - common in NVIDIA FIFO processing
-        BX_DEBUG(("fifo: zero padding (0x00000000)"));
-      } else if (word == 0x00ffffff) {
-        // NOP command - common in NVIDIA FIFO processing
-        BX_DEBUG(("fifo: NOP command (0x00ffffff)"));
       } else {
         BX_PANIC(("fifo: unexpected word 0x%08x", word));
       }
@@ -6367,7 +6139,7 @@ void bx_geforce_c::svga_init_pcihandlers(void)
   Bit16u devid = 0x0000;
   Bit8u revid = 0x00;
   if (BX_GEFORCE_THIS card_type == 0x20) {
-    devid = 0x0202;
+    devid = 0x0200;
     revid = 0xA3;
   } else if (BX_GEFORCE_THIS card_type == 0x35) {
     devid = 0x0331;
@@ -6403,8 +6175,10 @@ void bx_geforce_c::svga_init_pcihandlers(void)
   BX_GEFORCE_THIS pci_conf[0x2c] = 0x7D;
   BX_GEFORCE_THIS pci_conf[0x2d] = 0x10;
   if (BX_GEFORCE_THIS card_type == 0x20) {
-    BX_GEFORCE_THIS pci_conf[0x2e] = 0x63;
-    BX_GEFORCE_THIS pci_conf[0x2f] = 0x28;
+    BX_GEFORCE_THIS pci_conf[0x2c] = 0x00;
+    BX_GEFORCE_THIS pci_conf[0x2d] = 0x00;
+    BX_GEFORCE_THIS pci_conf[0x2e] = 0x00;
+    BX_GEFORCE_THIS pci_conf[0x2f] = 0x00;
   } else if (BX_GEFORCE_THIS card_type == 0x15) {
     BX_GEFORCE_THIS pci_conf[0x2c] = 0xDE;
     BX_GEFORCE_THIS pci_conf[0x2d] = 0x10;

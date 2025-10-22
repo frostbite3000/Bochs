@@ -268,28 +268,6 @@ struct gf_channel
   Bit32u d3d_attrib_tex_coord[10];
   Bit32u d3d_tex_coord_count;
 
-  // NV15_3D specific fields
-  Bit32u nv15_rt_horiz;
-  Bit32u nv15_rt_vert;
-  Bit32u nv15_rt_format;
-  Bit32u nv15_color_mask_enable;
-  Bit32u nv15_zclear_enable;
-  Bit32u nv15_zclear_value;
-  Bit32u nv15_viewport_horizontal;
-  Bit32u nv15_viewport_vertical;
-  float nv15_viewport_offset[4];
-  float nv15_viewport_scale[4];
-  Bit32u nv15_transform_program[544][4];
-  float nv15_transform_constant[512][4];
-  Bit32u nv15_texture_offset[16];
-  Bit32u nv15_texture_format[16];
-  Bit32u nv15_texture_address[16];
-  Bit32u nv15_texture_control0[16];
-  Bit32u nv15_texture_control1[16];
-  Bit32u nv15_texture_filter[16];
-  Bit32u nv15_texture_image_rect[16];
-  Bit32u nv15_texture_palette[16];
-
   Bit8u  rop;
 
   Bit32u beta;
