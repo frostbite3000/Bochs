@@ -1988,6 +1988,27 @@ AC_ARG_ENABLE(voodoo,
     AC_DEFINE(BX_SUPPORT_VOODOO, 0)
     ]
   )
+
+AC_MSG_CHECKING(for 3dfx Voodoo Rush emulation)
+AC_ARG_ENABLE(voodoorush,
+  AS_HELP_STRING([--enable-voodoorush], [enable 3dfx Voodoo Rush emulation (no)]),
+  [if test "$enableval" = yes; then
+    AC_MSG_RESULT(yes)
+    if test "$pci" != "1"; then
+      AC_MSG_ERROR([3dfx Voodoo Rush emulation requires PCI support])
+    fi
+    AC_DEFINE(BX_SUPPORT_VOODOORUSH, 1)
+    DISPLAY_OBJS="$DISPLAY_OBJS voodoorush.o"
+    DISPLAY_DLL_TARGETS="$DISPLAY_DLL_TARGETS bx_voodoo.dll"
+   else
+    AC_MSG_RESULT(no)
+    AC_DEFINE(BX_SUPPORT_VOODOORUSH, 0)
+   fi],
+  [
+    AC_MSG_RESULT(no)
+    AC_DEFINE(BX_SUPPORT_VOODOORUSH, 0)
+    ]
+  )
 AC_SUBST(DISPLAY_OBJS)
 AC_SUBST(DISPLAY_EXTRA_OBJS)
 AC_SUBST(DISPLAY_DLL_TARGETS)

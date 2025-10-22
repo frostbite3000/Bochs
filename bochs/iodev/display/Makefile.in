@@ -119,8 +119,11 @@ bx_svga_cirrus.dll: svga_cirrus.o vgacore.o ddc.o
 bx_geforce.dll: geforce.o vgacore.o ddc.o
 	@LINK_DLL@ geforce.o vgacore.o ddc.o $(WIN32_DLL_IMPORT_LIBRARY)
 
-bx_voodoo.dll: voodoo.o voodoorush.o banshee.o vgacore.o ddc.o
-	@LINK_DLL@ voodoo.o voodoorush.o banshee.o vgacore.o ddc.o $(WIN32_DLL_IMPORT_LIBRARY)
+bx_voodoorush.dll: voodoorush.o vgacore.o ddc.o
+	@LINK_DLL@ voodoorush.o vgacore.o ddc.o $(WIN32_DLL_IMPORT_LIBRARY)
+
+bx_voodoo.dll: voodoo.o banshee.o vgacore.o ddc.o
+	@LINK_DLL@ voodoo.o banshee.o vgacore.o ddc.o $(WIN32_DLL_IMPORT_LIBRARY)
 
 ##### end DLL section
 

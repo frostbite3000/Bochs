@@ -1094,6 +1094,7 @@ enable_raw_serial
 enable_clgd54xx
 enable_geforce
 enable_voodoo
+enable_voodoorush
 enable_cdrom
 enable_sb16
 enable_es1370
@@ -25695,6 +25696,38 @@ printf "%s\n" "no" >&6; }
 esac
 fi
 
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for 3dfx Voodoo Rush emulation" >&5
+printf %s "checking for 3dfx Voodoo Rush emulation... " >&6; }
+# Check whether --enable-voodoo was given.
+if test ${enable_voodoorush+y}
+then :
+  enableval=$enable_voodoorush; if test "$enableval" = yes; then
+    { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+printf "%s\n" "yes" >&6; }
+    if test "$pci" != "1"; then
+      as_fn_error $? "3dfx Voodoo Rush emulation requires PCI support" "$LINENO" 5
+    fi
+    printf "%s\n" "#define BX_SUPPORT_VOODOORUSH 1" >>confdefs.h
+
+    DISPLAY_OBJS="$DISPLAY_OBJS voodoorush.o"
+    DISPLAY_DLL_TARGETS="$DISPLAY_DLL_TARGETS bx_voodoo.dll"
+   else
+    { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: no" >&5
+printf "%s\n" "no" >&6; }
+    printf "%s\n" "#define BX_SUPPORT_VOODOORUSH 0" >>confdefs.h
+
+   fi
+else case e in #(
+  e)
+    { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: no" >&5
+printf "%s\n" "no" >&6; }
+    printf "%s\n" "#define BX_SUPPORT_VOODOORUSH 0" >>confdefs.h
+
+
+   ;;
+esac
+fi
+
 
 { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for 3dfx Voodoo Graphics emulation" >&5
 printf %s "checking for 3dfx Voodoo Graphics emulation... " >&6; }
@@ -25710,7 +25743,7 @@ printf "%s\n" "yes" >&6; }
     printf "%s\n" "#define BX_SUPPORT_VOODOO 1" >>confdefs.h
 
     DISPLAY_OBJS="$DISPLAY_OBJS voodoo.o"
-    DISPLAY_EXTRA_OBJS="$DISPLAY_EXTRA_OBJS banshee.o voodoorush.o"
+    DISPLAY_EXTRA_OBJS="$DISPLAY_EXTRA_OBJS banshee.o"
     DISPLAY_DLL_TARGETS="$DISPLAY_DLL_TARGETS bx_voodoo.dll"
    else
     { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: no" >&5

@@ -18,6 +18,7 @@ set echo
             --enable-clgd54xx \
             --enable-geforce \
             --enable-voodoo \
+            --enable-voodoorush \
             --enable-usb \
             --enable-usb-ohci \
             --enable-usb-ehci \
