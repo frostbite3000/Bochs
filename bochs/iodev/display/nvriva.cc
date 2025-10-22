@@ -4791,7 +4791,7 @@ Bit32u bx_nvriva_c::register_read32(Bit32u address)
   else if ((address >= 0xc0300 && address < 0xc0400) ||
            (address >= 0xc2300 && address < 0xc2400))
     value = register_read8(address);
-  else if (address == 0x100000) {
+  else if (address == 0x100000)
     value = BX_NVRIVA_THIS s.memsize;
   else if (address == 0x101000)
     value = BX_NVRIVA_THIS straps0_primary;
