@@ -853,7 +853,7 @@ void bx_voodoo_1_2_c::after_restore_state(void)
     s.vdraw.frame_start = bx_virt_timer.time_usec(0);
     update_timing();
     DEV_vga_set_override(1, BX_VOODOO_THIS_PTR);
-    if (s.model == VOODOO_1) {
+    if (s.model == VOODOO_1 || s.model == VOODOO_RUSH) {
       recompute_video_memory(v);
     }
 

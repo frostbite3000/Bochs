@@ -4006,7 +4006,45 @@ void voodoo_init(Bit8u _type)
       v->fbi.lfb_stride = 11;
       v->chipmask = 0x01 | 0x02 | 0x04;
       break;
+
+    case VOODOO_5:
+      v->regaccess = banshee_register_access;
+      v->regnames = banshee_reg_name;
+      v->alt_regmap = 1;
+      v->fbi.lfb_stride = 11;
+      v->chipmask = 0x01 | 0x02 | 0x04 | 0x08;
+      break;
+
+    case VOODOO_RUSH:
+      v->regaccess = voodoo_register_access;
+      v->regnames = voodoo_reg_name;
+      v->alt_regmap = 0;
+      v->fbi.lfb_stride = 10;
+      break;
   }
+  
+  /* Initialize model-specific clock */
+  switch (v->type) {
+    case VOODOO_1:
+      v->vidclk = STD_VOODOO_1_CLOCK;
+      break;
+    case VOODOO_2:
+      v->vidclk = STD_VOODOO_2_CLOCK;
+      break;
+    case VOODOO_BANSHEE:
+      v->vidclk = STD_VOODOO_BANSHEE_CLOCK;
+      break;
+    case VOODOO_3:
+      v->vidclk = STD_VOODOO_3_CLOCK;
+      break;
+    case VOODOO_5:
+      v->vidclk = STD_VOODOO_5_CLOCK;
+      break;
+    case VOODOO_RUSH:
+      v->vidclk = STD_VOODOO_RUSH_CLOCK;
+      break;
+  }
+
   memset(v->dac.reg, 0, sizeof(v->dac.reg));
   v->dac.read_result = 0;
   v->dac.clk0_m = 0x37;

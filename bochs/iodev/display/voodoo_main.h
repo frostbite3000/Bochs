@@ -46,6 +46,7 @@ enum
 {
   VOODOO_1,
   VOODOO_2,
+  VOODOO_RUSH,
   VOODOO_BANSHEE,
   VOODOO_3,
   MAX_VOODOO_TYPES
@@ -56,6 +57,8 @@ enum
 #define STD_VOODOO_2_CLOCK       90000000.0
 #define STD_VOODOO_BANSHEE_CLOCK 90000000.0
 #define STD_VOODOO_3_CLOCK      132000000.0
+#define STD_VOODOO_5_CLOCK      166000000.0
+#define STD_VOODOO_RUSH_CLOCK    50000000.0
 
 
 /***************************************************************************
