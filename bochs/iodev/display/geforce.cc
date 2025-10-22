@@ -154,7 +154,7 @@ bool bx_geforce_c::init_vga_extension(void)
   const char* model_string;
   if (model_enum == GEFORCE_3) {
     BX_GEFORCE_THIS card_type = 0x20;
-    model_string = "GeForce3";
+    model_string = "GeForce3 Ti 500";
   } else if (model_enum == GEFORCE_FX_5900) {
     BX_GEFORCE_THIS card_type = 0x35;
     model_string = "GeForce FX 5900";
@@ -342,7 +342,8 @@ void bx_geforce_c::svga_init_members()
   if (BX_GEFORCE_THIS card_type == 0x20) {
     BX_GEFORCE_THIS s.memsize = 64 * 1024 * 1024;
     BX_GEFORCE_THIS bar2_size = 0x00080000;
-    BX_GEFORCE_THIS straps0_primary_original = (0x7FF86C4B | 0x00000180);
+    // Matches real hardware with exception of disabled TV out
+    BX_GEFORCE_THIS straps0_primary_original = (0x7FF86C6B | 0x00000180);
   } else if (BX_GEFORCE_THIS card_type == 0x15) {
     BX_GEFORCE_THIS s.memsize = 64 * 1024 * 1024;
     BX_GEFORCE_THIS straps0_primary_original = (0x7FF86C4B | 0x00000180);
@@ -6139,7 +6140,7 @@ void bx_geforce_c::svga_init_pcihandlers(void)
   Bit16u devid = 0x0000;
   Bit8u revid = 0x00;
   if (BX_GEFORCE_THIS card_type == 0x20) {
-    devid = 0x0200;
+    devid = 0x0202;
     revid = 0xA3;
   } else if (BX_GEFORCE_THIS card_type == 0x35) {
     devid = 0x0331;
@@ -6175,10 +6176,8 @@ void bx_geforce_c::svga_init_pcihandlers(void)
   BX_GEFORCE_THIS pci_conf[0x2c] = 0x7D;
   BX_GEFORCE_THIS pci_conf[0x2d] = 0x10;
   if (BX_GEFORCE_THIS card_type == 0x20) {
-    BX_GEFORCE_THIS pci_conf[0x2c] = 0x00;
-    BX_GEFORCE_THIS pci_conf[0x2d] = 0x00;
-    BX_GEFORCE_THIS pci_conf[0x2e] = 0x00;
-    BX_GEFORCE_THIS pci_conf[0x2f] = 0x00;
+    BX_GEFORCE_THIS pci_conf[0x2e] = 0x63;
+    BX_GEFORCE_THIS pci_conf[0x2f] = 0x28;
   } else if (BX_GEFORCE_THIS card_type == 0x15) {
     BX_GEFORCE_THIS pci_conf[0x2c] = 0xDE;
     BX_GEFORCE_THIS pci_conf[0x2d] = 0x10;
