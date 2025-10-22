@@ -38,11 +38,161 @@
 
 #define NVRIVA_CHANNEL_COUNT 32
 #define NVRIVA_SUBCHANNEL_COUNT 8
+
+// NV04_3D XML register definitions
+#define NV04_CONTEXT_SURFACES_3D_DMA_NOTIFY          0x00000180
+#define NV04_CONTEXT_SURFACES_3D_DMA_COLOR           0x00000184
+#define NV04_CONTEXT_SURFACES_3D_DMA_ZETA            0x00000188
+#define NV04_CONTEXT_SURFACES_3D_CLIP_HORIZONTAL     0x000002f8
+#define NV04_CONTEXT_SURFACES_3D_CLIP_VERTICAL       0x000002fc
+#define NV04_CONTEXT_SURFACES_3D_FORMAT              0x00000300
+#define NV04_CONTEXT_SURFACES_3D_PITCH               0x00000308
+#define NV04_CONTEXT_SURFACES_3D_OFFSET_COLOR        0x0000030c
+#define NV04_CONTEXT_SURFACES_3D_OFFSET_ZETA         0x00000310
+
+// NV04_3D Textured Triangle definitions
+#define NV04_TEXTURED_TRIANGLE_DMA_NOTIFY            0x00000180
+#define NV04_TEXTURED_TRIANGLE_DMA_A                 0x00000184
+#define NV04_TEXTURED_TRIANGLE_DMA_B                 0x00000188
+#define NV04_TEXTURED_TRIANGLE_COLORKEY              0x00000300
+#define NV04_TEXTURED_TRIANGLE_OFFSET                0x00000304
+#define NV04_TEXTURED_TRIANGLE_FORMAT                0x00000308
+#define NV04_TEXTURED_TRIANGLE_FILTER                0x0000030c
+#define NV04_TEXTURED_TRIANGLE_BLEND                 0x00000310
+#define NV04_TEXTURED_TRIANGLE_CONTROL                0x00000314
+#define NV04_TEXTURED_TRIANGLE_FOGCOLOR              0x00000318
+#define NV04_TEXTURED_TRIANGLE_BLEND_FOG_ENABLE      0x00010000
+
+// NV04_TEXTURED_TRIANGLE_BLEND constants
+#define NV04_TEXTURED_TRIANGLE_BLEND_TEXTURE_MAP__MASK        0x0000000f
+#define NV04_TEXTURED_TRIANGLE_BLEND_TEXTURE_MAP__SHIFT       0
+#define NV04_TEXTURED_TRIANGLE_BLEND_TEXTURE_MAP_DECAL         0x00000001
+#define NV04_TEXTURED_TRIANGLE_BLEND_TEXTURE_MAP_MODULATE     0x00000002
+#define NV04_TEXTURED_TRIANGLE_BLEND_TEXTURE_MAP_DECALALPHA   0x00000003
+#define NV04_TEXTURED_TRIANGLE_BLEND_TEXTURE_MAP_MODULATEALPHA 0x00000004
+#define NV04_TEXTURED_TRIANGLE_BLEND_TEXTURE_MAP_DECALMASK     0x00000005
+#define NV04_TEXTURED_TRIANGLE_BLEND_TEXTURE_MAP_MODULATEMASK  0x00000006
+#define NV04_TEXTURED_TRIANGLE_BLEND_TEXTURE_MAP_COPY          0x00000007
+#define NV04_TEXTURED_TRIANGLE_BLEND_TEXTURE_MAP_ADD           0x00000008
+#define NV04_TEXTURED_TRIANGLE_BLEND_MASK_BIT__MASK            0x00000030
+#define NV04_TEXTURED_TRIANGLE_BLEND_MASK_BIT__SHIFT           4
+#define NV04_TEXTURED_TRIANGLE_BLEND_MASK_BIT_LSB             0x00000010
+#define NV04_TEXTURED_TRIANGLE_BLEND_MASK_BIT_MSB             0x00000020
+#define NV04_TEXTURED_TRIANGLE_BLEND_SHADE_MODE__MASK          0x000000c0
+#define NV04_TEXTURED_TRIANGLE_BLEND_SHADE_MODE__SHIFT         6
+#define NV04_TEXTURED_TRIANGLE_BLEND_SHADE_MODE_FLAT           0x00000040
+#define NV04_TEXTURED_TRIANGLE_BLEND_SHADE_MODE_GOURAUD       0x00000080
+#define NV04_TEXTURED_TRIANGLE_BLEND_SHADE_MODE_PHONG         0x000000c0
+#define NV04_TEXTURED_TRIANGLE_BLEND_TEXTURE_PERSPECTIVE_ENABLE 0x00000100
+#define NV04_TEXTURED_TRIANGLE_BLEND_SPECULAR_ENABLE          0x00001000
+#define NV04_TEXTURED_TRIANGLE_BLEND_BLEND_ENABLE             0x00100000
+#define NV04_TEXTURED_TRIANGLE_BLEND_SRC__MASK                0x0f000000
+#define NV04_TEXTURED_TRIANGLE_BLEND_SRC__SHIFT               24
+#define NV04_TEXTURED_TRIANGLE_BLEND_SRC_ZERO                 0x01000000
+#define NV04_TEXTURED_TRIANGLE_BLEND_SRC_ONE                  0x02000000
+#define NV04_TEXTURED_TRIANGLE_BLEND_SRC_SRC_COLOR            0x03000000
+#define NV04_TEXTURED_TRIANGLE_BLEND_SRC_ONE_MINUS_SRC_COLOR   0x04000000
+#define NV04_TEXTURED_TRIANGLE_BLEND_SRC_SRC_ALPHA            0x05000000
+#define NV04_TEXTURED_TRIANGLE_BLEND_SRC_ONE_MINUS_SRC_ALPHA  0x06000000
+#define NV04_TEXTURED_TRIANGLE_BLEND_SRC_DST_ALPHA            0x07000000
+#define NV04_TEXTURED_TRIANGLE_BLEND_SRC_ONE_MINUS_DST_ALPHA  0x08000000
+#define NV04_TEXTURED_TRIANGLE_BLEND_SRC_DST_COLOR            0x09000000
+#define NV04_TEXTURED_TRIANGLE_BLEND_SRC_ONE_MINUS_DST_COLOR  0x0a000000
+#define NV04_TEXTURED_TRIANGLE_BLEND_SRC_SRC_ALPHA_SATURATE   0x0b000000
+#define NV04_TEXTURED_TRIANGLE_BLEND_DST__MASK                0xf0000000
+#define NV04_TEXTURED_TRIANGLE_BLEND_DST__SHIFT               28
+#define NV04_TEXTURED_TRIANGLE_BLEND_DST_ZERO                 0x10000000
+#define NV04_TEXTURED_TRIANGLE_BLEND_DST_ONE                  0x20000000
+#define NV04_TEXTURED_TRIANGLE_BLEND_DST_SRC_COLOR            0x30000000
+#define NV04_TEXTURED_TRIANGLE_BLEND_DST_ONE_MINUS_SRC_COLOR  0x40000000
+#define NV04_TEXTURED_TRIANGLE_BLEND_DST_SRC_ALPHA            0x50000000
+#define NV04_TEXTURED_TRIANGLE_BLEND_DST_ONE_MINUS_SRC_ALPHA  0x60000000
+#define NV04_TEXTURED_TRIANGLE_BLEND_DST_DST_ALPHA            0x70000000
+#define NV04_TEXTURED_TRIANGLE_BLEND_DST_ONE_MINUS_DST_ALPHA  0x80000000
+#define NV04_TEXTURED_TRIANGLE_BLEND_DST_DST_COLOR            0x90000000
+#define NV04_TEXTURED_TRIANGLE_BLEND_DST_ONE_MINUS_DST_COLOR  0xa0000000
+#define NV04_TEXTURED_TRIANGLE_BLEND_DST_SRC_ALPHA_SATURATE   0xb0000000
+
+// NV04_TEXTURED_TRIANGLE_FILTER constants
+#define NV04_TEXTURED_TRIANGLE_FILTER_KERNEL_SIZE_X__MASK     0x000000ff
+#define NV04_TEXTURED_TRIANGLE_FILTER_KERNEL_SIZE_X__SHIFT    0
+#define NV04_TEXTURED_TRIANGLE_FILTER_KERNEL_SIZE_Y__MASK     0x00007f00
+#define NV04_TEXTURED_TRIANGLE_FILTER_KERNEL_SIZE_Y__SHIFT    8
+#define NV04_TEXTURED_TRIANGLE_FILTER_MIPMAP_DITHER_ENABLE    0x00008000
+#define NV04_TEXTURED_TRIANGLE_FILTER_MIPMAP_LODBIAS__MASK    0x00ff0000
+#define NV04_TEXTURED_TRIANGLE_FILTER_MIPMAP_LODBIAS__SHIFT   16
+#define NV04_TEXTURED_TRIANGLE_FILTER_MINIFY__MASK            0x07000000
+#define NV04_TEXTURED_TRIANGLE_FILTER_MINIFY__SHIFT           24
+#define NV04_TEXTURED_TRIANGLE_FILTER_MINIFY_NEAREST          0x01000000
+#define NV04_TEXTURED_TRIANGLE_FILTER_MINIFY_LINEAR           0x02000000
+#define NV04_TEXTURED_TRIANGLE_FILTER_MINIFY_NEAREST_MIPMAP_NEAREST  0x03000000
+#define NV04_TEXTURED_TRIANGLE_FILTER_MINIFY_LINEAR_MIPMAP_NEAREST   0x04000000
+#define NV04_TEXTURED_TRIANGLE_FILTER_MINIFY_NEAREST_MIPMAP_LINEAR   0x05000000
+#define NV04_TEXTURED_TRIANGLE_FILTER_MINIFY_LINEAR_MIPMAP_LINEAR    0x06000000
+#define NV04_TEXTURED_TRIANGLE_FILTER_ANISOTROPIC_MINIFY_ENABLE      0x08000000
+#define NV04_TEXTURED_TRIANGLE_FILTER_MAGNIFY__MASK           0x70000000
+#define NV04_TEXTURED_TRIANGLE_FILTER_MAGNIFY__SHIFT          28
+#define NV04_TEXTURED_TRIANGLE_FILTER_MAGNIFY_NEAREST         0x10000000
+#define NV04_TEXTURED_TRIANGLE_FILTER_MAGNIFY_LINEAR          0x20000000
+#define NV04_TEXTURED_TRIANGLE_FILTER_ANISOTROPIC_MAGNIFY_ENABLE     0x80000000
+
+// NV04_TEXTURED_TRIANGLE_COLORKEY constants
+#define NV04_TEXTURED_TRIANGLE_COLORKEY_B__MASK              0x000000ff
+#define NV04_TEXTURED_TRIANGLE_COLORKEY_B__SHIFT             0
+#define NV04_TEXTURED_TRIANGLE_COLORKEY_G__MASK              0x0000ff00
+#define NV04_TEXTURED_TRIANGLE_COLORKEY_G__SHIFT             8
+#define NV04_TEXTURED_TRIANGLE_COLORKEY_R__MASK              0x00ff0000
+#define NV04_TEXTURED_TRIANGLE_COLORKEY_R__SHIFT             16
+#define NV04_TEXTURED_TRIANGLE_COLORKEY_A__MASK              0xff000000
+#define NV04_TEXTURED_TRIANGLE_COLORKEY_A__SHIFT             24
+
+// NV04_TEXTURED_TRIANGLE_CONTROL constants
+#define NV04_TEXTURED_TRIANGLE_CONTROL_ALPHA_REF__MASK       0x000000ff
+#define NV04_TEXTURED_TRIANGLE_CONTROL_ALPHA_REF__SHIFT      0
+#define NV04_TEXTURED_TRIANGLE_CONTROL_ALPHA_FUNC__MASK      0x00000f00
+#define NV04_TEXTURED_TRIANGLE_CONTROL_ALPHA_FUNC__SHIFT     8
+#define NV04_TEXTURED_TRIANGLE_CONTROL_ALPHA_FUNC_NEVER      0x00000100
+#define NV04_TEXTURED_TRIANGLE_CONTROL_ALPHA_FUNC_LESS       0x00000200
+#define NV04_TEXTURED_TRIANGLE_CONTROL_ALPHA_FUNC_EQUAL      0x00000300
+#define NV04_TEXTURED_TRIANGLE_CONTROL_ALPHA_FUNC_LEQUAL     0x00000400
+#define NV04_TEXTURED_TRIANGLE_CONTROL_ALPHA_FUNC_GREATER    0x00000500
+#define NV04_TEXTURED_TRIANGLE_CONTROL_ALPHA_FUNC_NOTEQUAL   0x00000600
+#define NV04_TEXTURED_TRIANGLE_CONTROL_ALPHA_FUNC_GEQUAL     0x00000700
+#define NV04_TEXTURED_TRIANGLE_CONTROL_ALPHA_FUNC_ALWAYS     0x00000800
+#define NV04_TEXTURED_TRIANGLE_CONTROL_ALPHA_ENABLE           0x00001000
+#define NV04_TEXTURED_TRIANGLE_CONTROL_ORIGIN__MASK          0x00002000
+#define NV04_TEXTURED_TRIANGLE_CONTROL_ORIGIN__SHIFT        13
+#define NV04_TEXTURED_TRIANGLE_CONTROL_ORIGIN_CENTER         0x00000000
+#define NV04_TEXTURED_TRIANGLE_CONTROL_ORIGIN_CORNER         0x00002000
+#define NV04_TEXTURED_TRIANGLE_CONTROL_Z_ENABLE              0x00004000
+#define NV04_TEXTURED_TRIANGLE_CONTROL_Z_FUNC__MASK          0x000f0000
+#define NV04_TEXTURED_TRIANGLE_CONTROL_Z_FUNC__SHIFT        16
+#define NV04_TEXTURED_TRIANGLE_CONTROL_Z_FUNC_NEVER          0x00010000
+#define NV04_TEXTURED_TRIANGLE_CONTROL_Z_FUNC_LESS           0x00020000
+#define NV04_TEXTURED_TRIANGLE_CONTROL_Z_FUNC_EQUAL          0x00030000
+#define NV04_TEXTURED_TRIANGLE_CONTROL_Z_FUNC_LEQUAL         0x00040000
+#define NV04_TEXTURED_TRIANGLE_CONTROL_Z_FUNC_GREATER        0x00050000
+#define NV04_TEXTURED_TRIANGLE_CONTROL_Z_FUNC_NOTEQUAL       0x00060000
+#define NV04_TEXTURED_TRIANGLE_CONTROL_Z_FUNC_GEQUAL         0x00070000
+#define NV04_TEXTURED_TRIANGLE_CONTROL_Z_FUNC_ALWAYS         0x00080000
+#define NV04_TEXTURED_TRIANGLE_CONTROL_CULL_MODE__MASK       0x00300000
+#define NV04_TEXTURED_TRIANGLE_CONTROL_CULL_MODE__SHIFT      20
+#define NV04_TEXTURED_TRIANGLE_CONTROL_CULL_MODE_BOTH        0x00000000
+#define NV04_TEXTURED_TRIANGLE_CONTROL_CULL_MODE_NONE        0x00100000
+#define NV04_TEXTURED_TRIANGLE_CONTROL_CULL_MODE_CW          0x00200000
+#define NV04_TEXTURED_TRIANGLE_CONTROL_CULL_MODE_CCW         0x00300000
+#define NV04_TEXTURED_TRIANGLE_CONTROL_DITHER_ENABLE         0x00400000
+#define NV04_TEXTURED_TRIANGLE_CONTROL_Z_PERSPECTIVE_ENABLE  0x00800000
+#define NV04_TEXTURED_TRIANGLE_CONTROL_Z_WRITE               0x01000000
+#define NV04_TEXTURED_TRIANGLE_CONTROL_Z_FORMAT__MASK        0xc0000000
+#define NV04_TEXTURED_TRIANGLE_CONTROL_Z_FORMAT__SHIFT       30
+#define NV04_TEXTURED_TRIANGLE_CONTROL_Z_FORMAT_FIXED        0x40000000
+#define NV04_TEXTURED_TRIANGLE_CONTROL_Z_FORMAT_FLOAT        0x80000000
 #define NVRIVA_CACHE1_SIZE 64
 
 #define BX_ROP_PATTERN 0x01
 
-struct gf_channel
+struct nv04_channel
 {
   Bit32u subr_return;
   bool subr_active;
@@ -266,6 +416,62 @@ struct gf_channel
   Bit32u d3d_dci;
   Bit32u d3d_attrib_tex_coord[10];
   Bit32u d3d_tex_coord_count;
+  
+  // NV04_TEXTURED_TRIANGLE_FOGCOLOR support
+  Bit32u d3d_fog_color;
+  Bit8u d3d_fog_color_r;
+  Bit8u d3d_fog_color_g;
+  Bit8u d3d_fog_color_b;
+  Bit8u d3d_fog_color_a;
+  bool d3d_fog_enable;
+  
+  // NV04_TEXTURED_TRIANGLE_CONTROL support
+  Bit32u d3d_control;
+  Bit8u d3d_alpha_ref;
+  Bit8u d3d_alpha_func;
+  bool d3d_alpha_enable;
+  bool d3d_origin_center;
+  bool d3d_z_enable;
+  Bit8u d3d_z_func;
+  Bit8u d3d_cull_mode;
+  bool d3d_dither_enable;
+  bool d3d_z_perspective_enable;
+  bool d3d_z_write;
+  Bit8u d3d_z_format;
+  
+  // NV04_TEXTURED_TRIANGLE_BLEND support
+  Bit32u d3d_blend;
+  Bit8u d3d_texture_map;
+  Bit8u d3d_mask_bit;
+  Bit8u d3d_shade_mode;
+  bool d3d_texture_perspective_enable;
+  bool d3d_specular_enable;
+  bool d3d_blend_enable;
+  Bit8u d3d_blend_src;
+  Bit8u d3d_blend_dst;
+  
+  // NV04_TEXTURED_TRIANGLE_FILTER support
+  Bit32u d3d_filter;
+  Bit8u d3d_kernel_size_x;
+  Bit8u d3d_kernel_size_y;
+  bool d3d_mipmap_dither_enable;
+  Bit8u d3d_mipmap_lodbias;
+  Bit8u d3d_minify_filter;
+  Bit8u d3d_magnify_filter;
+  bool d3d_anisotropic_minify_enable;
+  bool d3d_anisotropic_magnify_enable;
+  
+  // NV04_TEXTURED_TRIANGLE_OFFSET support
+  Bit32u d3d_offset;
+  Bit32u d3d_texture_offset;
+  
+  // NV04_TEXTURED_TRIANGLE_COLORKEY support
+  Bit32u d3d_colorkey;
+  Bit8u d3d_colorkey_r;
+  Bit8u d3d_colorkey_g;
+  Bit8u d3d_colorkey_b;
+  Bit8u d3d_colorkey_a;
+  bool d3d_colorkey_enable;
 
   Bit8u  rop;
 
@@ -405,57 +611,74 @@ private:
   BX_NVRIVA_SMF void fifo_process(Bit32u chid);
   BX_NVRIVA_SMF bool execute_command(Bit32u chid, Bit32u subc, Bit32u method, Bit32u param);
 
-  BX_NVRIVA_SMF void update_color_bytes_ifc(gf_channel* ch);
-  BX_NVRIVA_SMF void update_color_bytes_sifc(gf_channel* ch);
-  BX_NVRIVA_SMF void update_color_bytes_tfc(gf_channel* ch);
-  BX_NVRIVA_SMF void update_color_bytes_iifc(gf_channel* ch);
+  BX_NVRIVA_SMF void update_color_bytes_ifc(nv04_channel* ch);
+  BX_NVRIVA_SMF void update_color_bytes_sifc(nv04_channel* ch);
+  BX_NVRIVA_SMF void update_color_bytes_tfc(nv04_channel* ch);
+  BX_NVRIVA_SMF void update_color_bytes_iifc(nv04_channel* ch);
   BX_NVRIVA_SMF void update_color_bytes(Bit32u s2d_color_fmt, Bit32u color_fmt, Bit32u* color_bytes);
 
-  BX_NVRIVA_SMF void execute_clip(gf_channel* ch, Bit32u method, Bit32u param);
-  BX_NVRIVA_SMF void execute_m2mf(gf_channel* ch, Bit32u subc, Bit32u method, Bit32u param);
-  BX_NVRIVA_SMF void execute_rop(gf_channel* ch, Bit32u method, Bit32u param);
-  BX_NVRIVA_SMF void execute_patt(gf_channel* ch, Bit32u method, Bit32u param);
-  BX_NVRIVA_SMF void execute_gdi(gf_channel* ch, Bit32u method, Bit32u param);
-  BX_NVRIVA_SMF void execute_swzsurf(gf_channel* ch, Bit32u method, Bit32u param);
-  BX_NVRIVA_SMF void execute_chroma(gf_channel* ch, Bit32u method, Bit32u param);
-  BX_NVRIVA_SMF void execute_imageblit(gf_channel* ch, Bit32u method, Bit32u param);
-  BX_NVRIVA_SMF void execute_ifc(gf_channel* ch, Bit32u method, Bit32u param);
-  BX_NVRIVA_SMF void execute_surf2d(gf_channel* ch, Bit32u method, Bit32u param);
-  BX_NVRIVA_SMF void execute_iifc(gf_channel* ch, Bit32u method, Bit32u param);
-  BX_NVRIVA_SMF void execute_sifc(gf_channel* ch, Bit32u method, Bit32u param);
-  BX_NVRIVA_SMF void execute_beta(gf_channel* ch, Bit32u method, Bit32u param);
-  BX_NVRIVA_SMF void execute_tfc(gf_channel* ch, Bit32u method, Bit32u param);
-  BX_NVRIVA_SMF void execute_sifm(gf_channel* ch, Bit32u method, Bit32u param);
-  BX_NVRIVA_SMF void execute_d3d(gf_channel* ch, Bit32u cls, Bit32u method, Bit32u param);
+  BX_NVRIVA_SMF void execute_clip(nv04_channel* ch, Bit32u method, Bit32u param);
+  BX_NVRIVA_SMF void execute_m2mf(nv04_channel* ch, Bit32u subc, Bit32u method, Bit32u param);
+  BX_NVRIVA_SMF void execute_rop(nv04_channel* ch, Bit32u method, Bit32u param);
+  BX_NVRIVA_SMF void execute_patt(nv04_channel* ch, Bit32u method, Bit32u param);
+  BX_NVRIVA_SMF void execute_gdi(nv04_channel* ch, Bit32u method, Bit32u param);
+  BX_NVRIVA_SMF void execute_swzsurf(nv04_channel* ch, Bit32u method, Bit32u param);
+  BX_NVRIVA_SMF void execute_chroma(nv04_channel* ch, Bit32u method, Bit32u param);
+  BX_NVRIVA_SMF void execute_imageblit(nv04_channel* ch, Bit32u method, Bit32u param);
+  BX_NVRIVA_SMF void execute_ifc(nv04_channel* ch, Bit32u method, Bit32u param);
+  BX_NVRIVA_SMF void execute_surf2d(nv04_channel* ch, Bit32u method, Bit32u param);
+  BX_NVRIVA_SMF void execute_iifc(nv04_channel* ch, Bit32u method, Bit32u param);
+  BX_NVRIVA_SMF void execute_sifc(nv04_channel* ch, Bit32u method, Bit32u param);
+  BX_NVRIVA_SMF void execute_beta(nv04_channel* ch, Bit32u method, Bit32u param);
+  BX_NVRIVA_SMF void execute_tfc(nv04_channel* ch, Bit32u method, Bit32u param);
+  BX_NVRIVA_SMF void execute_sifm(nv04_channel* ch, Bit32u method, Bit32u param);
+  BX_NVRIVA_SMF void execute_d3d(nv04_channel* ch, Bit32u cls, Bit32u method, Bit32u param);
 
   BX_NVRIVA_SMF Bit32u get_pixel(Bit32u obj, Bit32u ofs, Bit32u x, Bit32u cb);
-  BX_NVRIVA_SMF void put_pixel(gf_channel* ch, Bit32u ofs, Bit32u x, Bit32u value);
-  BX_NVRIVA_SMF void put_pixel_swzs(gf_channel* ch, Bit32u ofs, Bit32u value);
-  BX_NVRIVA_SMF void pixel_operation(gf_channel* ch, Bit32u op,
+  BX_NVRIVA_SMF void put_pixel(nv04_channel* ch, Bit32u ofs, Bit32u x, Bit32u value);
+  BX_NVRIVA_SMF void put_pixel_swzs(nv04_channel* ch, Bit32u ofs, Bit32u value);
+  BX_NVRIVA_SMF void pixel_operation(nv04_channel* ch, Bit32u op,
     Bit32u* dstcolor, const Bit32u* srccolor, Bit32u cb, Bit32u px, Bit32u py);
 
-  BX_NVRIVA_SMF void gdi_fillrect(gf_channel* ch, bool clipped);
-  BX_NVRIVA_SMF void gdi_blit(gf_channel* ch, Bit32u type);
-  BX_NVRIVA_SMF void ifc(gf_channel* ch, Bit32u word);
-  BX_NVRIVA_SMF void iifc(gf_channel* ch);
-  BX_NVRIVA_SMF void sifc(gf_channel* ch);
-  BX_NVRIVA_SMF void copyarea(gf_channel* ch);
-  BX_NVRIVA_SMF void tfc(gf_channel* ch);
-  BX_NVRIVA_SMF void m2mf(gf_channel* ch);
-  BX_NVRIVA_SMF void sifm(gf_channel* ch);
+  BX_NVRIVA_SMF void gdi_fillrect(nv04_channel* ch, bool clipped);
+  BX_NVRIVA_SMF void gdi_blit(nv04_channel* ch, Bit32u type);
+  BX_NVRIVA_SMF void ifc(nv04_channel* ch, Bit32u word);
+  BX_NVRIVA_SMF void iifc(nv04_channel* ch);
+  BX_NVRIVA_SMF void sifc(nv04_channel* ch);
+  BX_NVRIVA_SMF void copyarea(nv04_channel* ch);
+  BX_NVRIVA_SMF void tfc(nv04_channel* ch);
+  BX_NVRIVA_SMF void m2mf(nv04_channel* ch);
+  BX_NVRIVA_SMF void sifm(nv04_channel* ch);
 
-  BX_NVRIVA_SMF bool d3d_scissor_clip(gf_channel* ch, Bit32u* x, Bit32u* y, Bit32u* width, Bit32u* height);
-  BX_NVRIVA_SMF void d3d_clear_surface(gf_channel* ch);
-  BX_NVRIVA_SMF void d3d_sample_texture(gf_channel* ch,
+  BX_NVRIVA_SMF bool d3d_scissor_clip(nv04_channel* ch, Bit32u* x, Bit32u* y, Bit32u* width, Bit32u* height);
+  BX_NVRIVA_SMF void d3d_clear_surface(nv04_channel* ch);
+  BX_NVRIVA_SMF void d3d_sample_texture(nv04_channel* ch,
     Bit32u tex_unit, float str[3], float color[4]);
-  BX_NVRIVA_SMF void d3d_vertex_shader(gf_channel* ch, float in[16][4], float out[16][4]);
-  BX_NVRIVA_SMF void d3d_pixel_shader(gf_channel* ch, float in[16][4], float tmp_regs16[64][4], float tmp_regs32[64][4]);
-  BX_NVRIVA_SMF void d3d_triangle(gf_channel* ch, Bit32u base);
-  BX_NVRIVA_SMF void d3d_triangle_clipped(gf_channel* ch, float v0[16][4], float v1[16][4], float v2[16][4]);
-  BX_NVRIVA_SMF void d3d_clip_to_screen(gf_channel* ch, float pos_clip[4], float pos_screen[4]);
-  BX_NVRIVA_SMF void d3d_process_vertex(gf_channel* ch);
-  BX_NVRIVA_SMF void d3d_load_vertex(gf_channel* ch, Bit32u index);
-  BX_NVRIVA_SMF Bit32u d3d_get_surface_pitch_z(gf_channel* ch);
+  BX_NVRIVA_SMF void d3d_vertex_shader(nv04_channel* ch, float in[16][4], float out[16][4]);
+  BX_NVRIVA_SMF void d3d_pixel_shader(nv04_channel* ch, float in[16][4], float tmp_regs16[64][4], float tmp_regs32[64][4]);
+  BX_NVRIVA_SMF void d3d_triangle(nv04_channel* ch, Bit32u base);
+  BX_NVRIVA_SMF void d3d_triangle_clipped(nv04_channel* ch, float v0[16][4], float v1[16][4], float v2[16][4]);
+  BX_NVRIVA_SMF void d3d_clip_to_screen(nv04_channel* ch, float pos_clip[4], float pos_screen[4]);
+  BX_NVRIVA_SMF void d3d_process_vertex(nv04_channel* ch);
+  BX_NVRIVA_SMF void d3d_load_vertex(nv04_channel* ch, Bit32u index);
+  BX_NVRIVA_SMF Bit32u d3d_get_surface_pitch_z(nv04_channel* ch);
+  BX_NVRIVA_SMF void d3d_semaphore_notify(nv04_channel* ch, Bit32u value);
+  BX_NVRIVA_SMF bool d3d_semaphore_wait(nv04_channel* ch, Bit32u expected_value);
+  BX_NVRIVA_SMF void d3d_apply_fog_color(nv04_channel* ch, Bit32u* color);
+  BX_NVRIVA_SMF Bit32u d3d_blend_fog_color(nv04_channel* ch, Bit32u original_color, float fog_factor);
+  BX_NVRIVA_SMF bool d3d_alpha_test(nv04_channel* ch, Bit8u alpha);
+  BX_NVRIVA_SMF bool d3d_z_test(nv04_channel* ch, float z_value, float z_buffer_value);
+  BX_NVRIVA_SMF bool d3d_cull_triangle(nv04_channel* ch, float v0[4], float v1[4], float v2[4]);
+  BX_NVRIVA_SMF Bit32u d3d_texture_blend(nv04_channel* ch, Bit32u tex_color, Bit32u vertex_color);
+  BX_NVRIVA_SMF Bit32u d3d_alpha_blend(nv04_channel* ch, Bit32u src_color, Bit32u dst_color);
+  BX_NVRIVA_SMF Bit32u d3d_get_blend_factor(nv04_channel* ch, Bit8u factor, Bit32u src_color, Bit32u dst_color);
+  BX_NVRIVA_SMF Bit32u d3d_sample_texture_filtered(nv04_channel* ch, Bit32u tex_obj, float u, float v, float lod);
+  BX_NVRIVA_SMF Bit32u d3d_sample_texture_nearest(nv04_channel* ch, Bit32u tex_obj, float u, float v, float lod);
+  BX_NVRIVA_SMF Bit32u d3d_sample_texture_linear(nv04_channel* ch, Bit32u tex_obj, float u, float v, float lod);
+  BX_NVRIVA_SMF Bit32u d3d_sample_texture_mipmap(nv04_channel* ch, Bit32u tex_obj, float u, float v, float lod);
+  BX_NVRIVA_SMF Bit32u d3d_get_texture_offset(nv04_channel* ch);
+  BX_NVRIVA_SMF bool d3d_is_colorkey(nv04_channel* ch, Bit32u color);
+  BX_NVRIVA_SMF Bit32u d3d_apply_colorkey(nv04_channel* ch, Bit32u tex_color);
 
   struct {
     Bit8u index;
@@ -527,7 +750,7 @@ private:
 
   bool acquire_active;
 
-  gf_channel chs[NVRIVA_CHANNEL_COUNT];
+  nv04_channel chs[NVRIVA_CHANNEL_COUNT];
 
   Bit32u unk_regs[4*1024*1024]; // temporary
 

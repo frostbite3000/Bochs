@@ -59,7 +59,7 @@
 
 static bx_nvriva_c *theSvga = NULL;
 
-/* enumeration specifying which model of nVIDIA RIVA we are emulating */
+/* enumeration specifying which model of NVidia RIVA we are emulating */
 enum
 {
     RIVA_TNT,
@@ -81,8 +81,8 @@ void nvriva_init_options(void)
   menu->set_options(menu->SHOW_PARENT);
   new bx_param_enum_c(menu,
     "model",
-    "nVIDIA RIVA model",
-    "Selects the nVIDIA RIVA model to emulate.",
+    "NVidia RIVA model",
+    "Selects the NVidia RIVA model to emulate.",
     nvriva_model_list,
     RIVA_TNT, RIVA_TNT);
 }
@@ -256,7 +256,6 @@ void bx_nvriva_c::svga_init_members()
   BX_NVRIVA_THIS fifo_cache1_pull0 = 0;
   BX_NVRIVA_THIS fifo_cache1_semaphore = 0;
   BX_NVRIVA_THIS fifo_cache1_get = 0;
-  BX_NVRIVA_THIS fifo_grctx_instance = 0;
   for (int i = 0; i < NVRIVA_CACHE1_SIZE; i++) {
     BX_NVRIVA_THIS fifo_cache1_method[i] = 0;
     BX_NVRIVA_THIS fifo_cache1_data[i] = 0;
@@ -304,6 +303,62 @@ void bx_nvriva_c::svga_init_members()
     BX_NVRIVA_THIS chs[i].s2d_color_bytes = 1;
     BX_NVRIVA_THIS chs[i].d3d_color_bytes = 1;
     BX_NVRIVA_THIS chs[i].d3d_depth_bytes = 1;
+    
+    // Initialize fog color to default values
+    BX_NVRIVA_THIS chs[i].d3d_fog_color = 0x00000000;
+    BX_NVRIVA_THIS chs[i].d3d_fog_color_r = 0;
+    BX_NVRIVA_THIS chs[i].d3d_fog_color_g = 0;
+    BX_NVRIVA_THIS chs[i].d3d_fog_color_b = 0;
+    BX_NVRIVA_THIS chs[i].d3d_fog_color_a = 0;
+    BX_NVRIVA_THIS chs[i].d3d_fog_enable = false;
+    
+    // Initialize control to default values
+    BX_NVRIVA_THIS chs[i].d3d_control = 0x00000000;
+    BX_NVRIVA_THIS chs[i].d3d_alpha_ref = 0;
+    BX_NVRIVA_THIS chs[i].d3d_alpha_func = NV04_TEXTURED_TRIANGLE_CONTROL_ALPHA_FUNC_ALWAYS >> NV04_TEXTURED_TRIANGLE_CONTROL_ALPHA_FUNC__SHIFT;
+    BX_NVRIVA_THIS chs[i].d3d_alpha_enable = false;
+    BX_NVRIVA_THIS chs[i].d3d_origin_center = true;
+    BX_NVRIVA_THIS chs[i].d3d_z_enable = true;
+    BX_NVRIVA_THIS chs[i].d3d_z_func = NV04_TEXTURED_TRIANGLE_CONTROL_Z_FUNC_LEQUAL >> NV04_TEXTURED_TRIANGLE_CONTROL_Z_FUNC__SHIFT;
+    BX_NVRIVA_THIS chs[i].d3d_cull_mode = NV04_TEXTURED_TRIANGLE_CONTROL_CULL_MODE_NONE >> NV04_TEXTURED_TRIANGLE_CONTROL_CULL_MODE__SHIFT;
+    BX_NVRIVA_THIS chs[i].d3d_dither_enable = false;
+    BX_NVRIVA_THIS chs[i].d3d_z_perspective_enable = true;
+    BX_NVRIVA_THIS chs[i].d3d_z_write = true;
+    BX_NVRIVA_THIS chs[i].d3d_z_format = NV04_TEXTURED_TRIANGLE_CONTROL_Z_FORMAT_FIXED >> NV04_TEXTURED_TRIANGLE_CONTROL_Z_FORMAT__SHIFT;
+    
+    // Initialize blend to default values
+    BX_NVRIVA_THIS chs[i].d3d_blend = 0x00000000;
+    BX_NVRIVA_THIS chs[i].d3d_texture_map = NV04_TEXTURED_TRIANGLE_BLEND_TEXTURE_MAP_MODULATE >> NV04_TEXTURED_TRIANGLE_BLEND_TEXTURE_MAP__SHIFT;
+    BX_NVRIVA_THIS chs[i].d3d_mask_bit = NV04_TEXTURED_TRIANGLE_BLEND_MASK_BIT_LSB >> NV04_TEXTURED_TRIANGLE_BLEND_MASK_BIT__SHIFT;
+    BX_NVRIVA_THIS chs[i].d3d_shade_mode = NV04_TEXTURED_TRIANGLE_BLEND_SHADE_MODE_GOURAUD >> NV04_TEXTURED_TRIANGLE_BLEND_SHADE_MODE__SHIFT;
+    BX_NVRIVA_THIS chs[i].d3d_texture_perspective_enable = true;
+    BX_NVRIVA_THIS chs[i].d3d_specular_enable = false;
+    BX_NVRIVA_THIS chs[i].d3d_blend_enable = false;
+    BX_NVRIVA_THIS chs[i].d3d_blend_src = NV04_TEXTURED_TRIANGLE_BLEND_SRC_SRC_ALPHA >> NV04_TEXTURED_TRIANGLE_BLEND_SRC__SHIFT;
+    BX_NVRIVA_THIS chs[i].d3d_blend_dst = NV04_TEXTURED_TRIANGLE_BLEND_DST_ONE_MINUS_SRC_ALPHA >> NV04_TEXTURED_TRIANGLE_BLEND_DST__SHIFT;
+    
+    // Initialize filter to default values
+    BX_NVRIVA_THIS chs[i].d3d_filter = 0x00000000;
+    BX_NVRIVA_THIS chs[i].d3d_kernel_size_x = 1;
+    BX_NVRIVA_THIS chs[i].d3d_kernel_size_y = 1;
+    BX_NVRIVA_THIS chs[i].d3d_mipmap_dither_enable = false;
+    BX_NVRIVA_THIS chs[i].d3d_mipmap_lodbias = 0;
+    BX_NVRIVA_THIS chs[i].d3d_minify_filter = NV04_TEXTURED_TRIANGLE_FILTER_MINIFY_NEAREST >> NV04_TEXTURED_TRIANGLE_FILTER_MINIFY__SHIFT;
+    BX_NVRIVA_THIS chs[i].d3d_magnify_filter = NV04_TEXTURED_TRIANGLE_FILTER_MAGNIFY_NEAREST >> NV04_TEXTURED_TRIANGLE_FILTER_MAGNIFY__SHIFT;
+    BX_NVRIVA_THIS chs[i].d3d_anisotropic_minify_enable = false;
+    BX_NVRIVA_THIS chs[i].d3d_anisotropic_magnify_enable = false;
+    
+    // Initialize offset to default values
+    BX_NVRIVA_THIS chs[i].d3d_offset = 0x00000000;
+    BX_NVRIVA_THIS chs[i].d3d_texture_offset = 0x00000000;
+    
+    // Initialize colorkey to default values
+    BX_NVRIVA_THIS chs[i].d3d_colorkey = 0x00000000;
+    BX_NVRIVA_THIS chs[i].d3d_colorkey_r = 0;
+    BX_NVRIVA_THIS chs[i].d3d_colorkey_g = 0;
+    BX_NVRIVA_THIS chs[i].d3d_colorkey_b = 0;
+    BX_NVRIVA_THIS chs[i].d3d_colorkey_a = 0;
+    BX_NVRIVA_THIS chs[i].d3d_colorkey_enable = false;
   }
 
   for (int i = 0; i < 4 * 1024 * 1024; i++)
@@ -332,11 +387,11 @@ void bx_nvriva_c::svga_init_members()
   if (BX_NVRIVA_THIS card_type == 0x04) {
     BX_NVRIVA_THIS s.memsize = 16 * 1024 * 1024;
     // Guess
-    BX_NVRIVA_THIS straps0_primary_original = (0x7FF86C4B | 0x000001A2);
+    BX_NVRIVA_THIS straps0_primary_original = 0x000001A2;
   } else if (BX_NVRIVA_THIS card_type == 0x05) {
     BX_NVRIVA_THIS s.memsize = 32 * 1024 * 1024;
     // Guess
-    BX_NVRIVA_THIS straps0_primary_original = (0x7FF86C4B | 0x000001A2);
+    BX_NVRIVA_THIS straps0_primary_original = 0x000001A2;
   }
   BX_NVRIVA_THIS straps0_primary = BX_NVRIVA_THIS straps0_primary_original;
   BX_NVRIVA_THIS ramin_flip = BX_NVRIVA_THIS s.memsize - 32;
@@ -370,7 +425,7 @@ void bx_nvriva_c::reset(unsigned type)
 
 void bx_nvriva_c::register_state(void)
 {
-  bx_list_c *list = new bx_list_c(SIM->get_bochs_root(), "nvriva", "nVIDIA RIVA State");
+  bx_list_c *list = new bx_list_c(SIM->get_bochs_root(), "nvriva", "NVidia RIVA State");
   BX_NVRIVA_THIS vgacore_register_state(list);
   bx_list_c *crtc = new bx_list_c(list, "crtc");
   new bx_shadow_num_c(crtc, "index", &BX_NVRIVA_THIS crtc.index, BASE_HEX);
@@ -1042,9 +1097,6 @@ void bx_nvriva_c::get_crtc_params(bx_crtc_params_t* crtcp, Bit32u* vclock)
       nb = ((BX_NVRIVA_THIS ramdac_vpll >> 21) & 0x18) |
             ((BX_NVRIVA_THIS ramdac_vpll >> 19) & 0x7);
     }
-  } else if (BX_NVRIVA_THIS card_type >= 0x40 && BX_NVRIVA_THIS ramdac_vpll_b & 0x80000000) {
-    mb =  BX_NVRIVA_THIS ramdac_vpll_b & 0xFF;
-    nb = (BX_NVRIVA_THIS ramdac_vpll_b >> 8) & 0xFF;
   }
   if ((BX_NVRIVA_THIS ramdac_pll_select & 0x200) != 0 && m && mb) {
     Bit32u crystalFreq = 13500000;
@@ -2070,11 +2122,8 @@ void bx_nvriva_c::dma_copy(Bit32u dst_obj, Bit32u dst_addr,
 Bit32u bx_nvriva_c::ramfc_address(Bit32u chid, Bit32u offset)
 {
   Bit32u ramfc;
-  if (BX_NVRIVA_THIS card_type < 0x40)
-    ramfc = (BX_NVRIVA_THIS fifo_ramfc & 0xFFF) << 8;
-  else
-    ramfc = (BX_NVRIVA_THIS fifo_ramfc & 0xFFF) << 16;
-  Bit32u ramfc_ch_size = (BX_NVRIVA_THIS card_type < 0x40) ? 0x40 : 0x80;
+  ramfc = (BX_NVRIVA_THIS fifo_ramfc & 0xFFF) << 16;
+  Bit32u ramfc_ch_size = 0x80;
   return ramfc + chid * ramfc_ch_size + offset;
 }
 
@@ -2109,23 +2158,14 @@ void bx_nvriva_c::ramht_lookup(Bit32u handle, Bit32u chid, Bit32u* object, Bit8u
     if (ramin_read32(ramht_addr + it) == handle) {
       Bit32u context = ramin_read32(ramht_addr + it + 4);
       Bit32u ctx_chid;
-      if (BX_NVRIVA_THIS card_type < 0x40)
-        ctx_chid = (context >> 24) & 0x1F;
-      else
-        ctx_chid = (context >> 23) & 0x1F;
+      ctx_chid = (context >> 23) & 0x1F;
       if (chid == ctx_chid) {
         BX_DEBUG(("ramht_lookup: 0x%08x -> 0x%08x, steps: %d", handle, context, steps));
         if (object) {
-          if (BX_NVRIVA_THIS card_type < 0x40)
-            *object = (context & 0xFFFF) << 4;
-          else
-            *object = (context & 0xFFFFF) << 4;
+          *object = (context & 0xFFFFF) << 4;
         }
         if (engine) {
-          if (BX_NVRIVA_THIS card_type < 0x40)
-            *engine = (context >> 16) & 0xFF;
-          else
-            *engine = (context >> 20) & 0x7;
+          *engine = (context >> 20) & 0x7;
         }
         return;
       }
@@ -2164,7 +2204,7 @@ Bit32u bx_nvriva_c::get_pixel(Bit32u obj, Bit32u ofs, Bit32u x, Bit32u cb)
   return result;
 }
 
-void bx_nvriva_c::put_pixel(gf_channel* ch, Bit32u ofs, Bit32u x, Bit32u value)
+void bx_nvriva_c::put_pixel(nv04_channel* ch, Bit32u ofs, Bit32u x, Bit32u value)
 {
   if (ch->s2d_color_bytes == 1)
     dma_write8(ch->s2d_img_dst, ofs + x, value);
@@ -2176,7 +2216,7 @@ void bx_nvriva_c::put_pixel(gf_channel* ch, Bit32u ofs, Bit32u x, Bit32u value)
     dma_write32(ch->s2d_img_dst, ofs + x * 4, value);
 }
 
-void bx_nvriva_c::put_pixel_swzs(gf_channel* ch, Bit32u ofs, Bit32u value)
+void bx_nvriva_c::put_pixel_swzs(nv04_channel* ch, Bit32u ofs, Bit32u value)
 {
   if (ch->swzs_color_bytes == 1)
     dma_write8(ch->swzs_img_obj, ofs, value);
@@ -2186,7 +2226,7 @@ void bx_nvriva_c::put_pixel_swzs(gf_channel* ch, Bit32u ofs, Bit32u value)
     dma_write32(ch->swzs_img_obj, ofs, value);
 }
 
-void bx_nvriva_c::pixel_operation(gf_channel* ch, Bit32u op,
+void bx_nvriva_c::pixel_operation(nv04_channel* ch, Bit32u op,
   Bit32u* dstcolor, const Bit32u* srccolor, Bit32u cb, Bit32u px, Bit32u py)
 {
   if (op == 1) {
@@ -2251,7 +2291,7 @@ void bx_nvriva_c::pixel_operation(gf_channel* ch, Bit32u op,
   }
 }
 
-void bx_nvriva_c::gdi_fillrect(gf_channel* ch, bool clipped)
+void bx_nvriva_c::gdi_fillrect(nv04_channel* ch, bool clipped)
 {
   Bit16s clipx0;
   Bit16s clipy0;
@@ -2306,7 +2346,7 @@ void bx_nvriva_c::gdi_fillrect(gf_channel* ch, bool clipped)
   BX_NVRIVA_THIS redraw_area_nd(redraw_offset, width, height);
 }
 
-void bx_nvriva_c::gdi_blit(gf_channel* ch, Bit32u type)
+void bx_nvriva_c::gdi_blit(nv04_channel* ch, Bit32u type)
 {
   Bit16s dx = ch->gdi_image_xy & 0xFFFF;
   Bit16s dy = ch->gdi_image_xy >> 16;
@@ -2354,7 +2394,7 @@ void bx_nvriva_c::gdi_blit(gf_channel* ch, Bit32u type)
   BX_NVRIVA_THIS redraw_area_nd(redraw_offset, dwidth, height);
 }
 
-void bx_nvriva_c::ifc(gf_channel* ch, Bit32u word)
+void bx_nvriva_c::ifc(nv04_channel* ch, Bit32u word)
 {
   Bit32u chromacolor;
   bool chroma_enabled = false;
@@ -2405,7 +2445,7 @@ void bx_nvriva_c::ifc(gf_channel* ch, Bit32u word)
   }
 }
 
-void bx_nvriva_c::iifc(gf_channel* ch)
+void bx_nvriva_c::iifc(nv04_channel* ch)
 {
   Bit16s dx = ch->iifc_yx & 0xFFFF;
   Bit16s dy = ch->iifc_yx >> 16;
@@ -2462,7 +2502,7 @@ void bx_nvriva_c::iifc(gf_channel* ch)
   BX_NVRIVA_THIS redraw_area_nd(redraw_offset, dwidth, height);
 }
 
-void bx_nvriva_c::sifc(gf_channel* ch)
+void bx_nvriva_c::sifc(nv04_channel* ch)
 {
   Bit16u dx = ch->sifc_clip_yx & 0xFFFF;
   Bit16u dy = ch->sifc_clip_yx >> 16;
@@ -2515,7 +2555,7 @@ void bx_nvriva_c::sifc(gf_channel* ch)
   BX_NVRIVA_THIS redraw_area_nd(redraw_offset, dwidth, height);
 }
 
-void bx_nvriva_c::copyarea(gf_channel* ch)
+void bx_nvriva_c::copyarea(nv04_channel* ch)
 {
   Bit16u sx = ch->blit_syx & 0xFFFF;
   Bit16u sy = ch->blit_syx >> 16;
@@ -2566,7 +2606,7 @@ void bx_nvriva_c::copyarea(gf_channel* ch)
   BX_NVRIVA_THIS redraw_area_nd(redraw_offset, width, height);
 }
 
-void bx_nvriva_c::m2mf(gf_channel* ch)
+void bx_nvriva_c::m2mf(nv04_channel* ch)
 {
   Bit32u src_offset = ch->m2mf_src_offset;
   Bit32u dst_offset = ch->m2mf_dst_offset;
@@ -2614,7 +2654,7 @@ Bit32u nvriva_swizzle(Bit32u x, Bit32u y, Bit32u width, Bit32u height)
   return r;
 }
 
-void bx_nvriva_c::tfc(gf_channel* ch)
+void bx_nvriva_c::tfc(nv04_channel* ch)
 {
   Bit16u dx = ch->tfc_yx & 0xFFFF;
   Bit16u dy = ch->tfc_yx >> 16;
@@ -2665,7 +2705,7 @@ void bx_nvriva_c::tfc(gf_channel* ch)
   }
 }
 
-void bx_nvriva_c::sifm(gf_channel* ch)
+void bx_nvriva_c::sifm(nv04_channel* ch)
 {
   Bit16u dx = ch->sifm_dyx & 0xFFFF;
   Bit16u dy = ch->sifm_dyx >> 16;
@@ -2757,7 +2797,7 @@ void bx_nvriva_c::sifm(gf_channel* ch)
   }
 }
 
-void bx_nvriva_c::execute_clip(gf_channel* ch, Bit32u method, Bit32u param)
+void bx_nvriva_c::execute_clip(nv04_channel* ch, Bit32u method, Bit32u param)
 {
   if (method == 0x0c0) {
     ch->clip_x = (Bit16u)param;
@@ -2768,7 +2808,7 @@ void bx_nvriva_c::execute_clip(gf_channel* ch, Bit32u method, Bit32u param)
   }
 }
 
-void bx_nvriva_c::execute_m2mf(gf_channel* ch, Bit32u subc, Bit32u method, Bit32u param)
+void bx_nvriva_c::execute_m2mf(nv04_channel* ch, Bit32u subc, Bit32u method, Bit32u param)
 {
   if (method == 0x061)
     ch->m2mf_src = param;
@@ -2803,13 +2843,13 @@ void bx_nvriva_c::execute_m2mf(gf_channel* ch, Bit32u subc, Bit32u method, Bit32
   }
 }
 
-void bx_nvriva_c::execute_rop(gf_channel* ch, Bit32u method, Bit32u param)
+void bx_nvriva_c::execute_rop(nv04_channel* ch, Bit32u method, Bit32u param)
 {
   if (method == 0x0c0)
     ch->rop = param;
 }
 
-void bx_nvriva_c::execute_patt(gf_channel* ch, Bit32u method, Bit32u param)
+void bx_nvriva_c::execute_patt(nv04_channel* ch, Bit32u method, Bit32u param)
 {
   if (method == 0x0c2)
     ch->patt_shape = param;
@@ -2836,7 +2876,7 @@ void bx_nvriva_c::execute_patt(gf_channel* ch, Bit32u method, Bit32u param)
     ch->patt_data_color[method - 0x1c0] = param;
 }
 
-void bx_nvriva_c::execute_gdi(gf_channel* ch, Bit32u method, Bit32u param)
+void bx_nvriva_c::execute_gdi(nv04_channel* ch, Bit32u method, Bit32u param)
 {
   if (method == 0x0bf)
     ch->gdi_operation = param;
@@ -2928,7 +2968,7 @@ void bx_nvriva_c::execute_gdi(gf_channel* ch, Bit32u method, Bit32u param)
     ch->gdi_fg_color = param;
 }
 
-void bx_nvriva_c::execute_swzsurf(gf_channel* ch, Bit32u method, Bit32u param)
+void bx_nvriva_c::execute_swzsurf(nv04_channel* ch, Bit32u method, Bit32u param)
 {
   if (method == 0x061)
     ch->swzs_img_obj = param;
@@ -2953,7 +2993,7 @@ void bx_nvriva_c::execute_swzsurf(gf_channel* ch, Bit32u method, Bit32u param)
     ch->swzs_ofs = param;
 }
 
-void bx_nvriva_c::execute_chroma(gf_channel* ch, Bit32u method, Bit32u param)
+void bx_nvriva_c::execute_chroma(nv04_channel* ch, Bit32u method, Bit32u param)
 {
   if (method == 0x0c0)
     ch->chroma_color_fmt = param;
@@ -2961,7 +3001,7 @@ void bx_nvriva_c::execute_chroma(gf_channel* ch, Bit32u method, Bit32u param)
     ch->chroma_color = param;
 }
 
-void bx_nvriva_c::execute_imageblit(gf_channel* ch, Bit32u method, Bit32u param)
+void bx_nvriva_c::execute_imageblit(nv04_channel* ch, Bit32u method, Bit32u param)
 {
   if (method == 0x061)
     ch->blit_color_key_enable = (ramin_read32(param) & 0xFF) != 0x30;
@@ -2977,7 +3017,7 @@ void bx_nvriva_c::execute_imageblit(gf_channel* ch, Bit32u method, Bit32u param)
   }
 }
 
-void bx_nvriva_c::execute_ifc(gf_channel* ch, Bit32u method, Bit32u param)
+void bx_nvriva_c::execute_ifc(nv04_channel* ch, Bit32u method, Bit32u param)
 {
   if (method == 0x061)
     ch->ifc_color_key_enable = (ramin_read32(param) & 0xFF) != 0x30;
@@ -3023,7 +3063,7 @@ void bx_nvriva_c::execute_ifc(gf_channel* ch, Bit32u method, Bit32u param)
   }
 }
 
-void bx_nvriva_c::execute_surf2d(gf_channel* ch, Bit32u method, Bit32u param)
+void bx_nvriva_c::execute_surf2d(nv04_channel* ch, Bit32u method, Bit32u param)
 {
   ch->s2d_locked = true;
   if (method == 0x061)
@@ -3059,27 +3099,27 @@ void bx_nvriva_c::execute_surf2d(gf_channel* ch, Bit32u method, Bit32u param)
     ch->s2d_ofs_dst = param;
 }
 
-void bx_nvriva_c::update_color_bytes_ifc(gf_channel* ch)
+void bx_nvriva_c::update_color_bytes_ifc(nv04_channel* ch)
 {
   BX_NVRIVA_THIS update_color_bytes(
     ch->s2d_color_fmt, ch->ifc_color_fmt,
     &ch->ifc_color_bytes);
 }
 
-void bx_nvriva_c::update_color_bytes_sifc(gf_channel* ch)
+void bx_nvriva_c::update_color_bytes_sifc(nv04_channel* ch)
 {
   BX_NVRIVA_THIS update_color_bytes(
     ch->s2d_color_fmt, ch->sifc_color_fmt,
     &ch->sifc_color_bytes);
 }
 
-void bx_nvriva_c::update_color_bytes_tfc(gf_channel* ch)
+void bx_nvriva_c::update_color_bytes_tfc(nv04_channel* ch)
 {
   BX_NVRIVA_THIS update_color_bytes(0,
     ch->tfc_color_fmt, &ch->tfc_color_bytes);
 }
 
-void bx_nvriva_c::update_color_bytes_iifc(gf_channel* ch)
+void bx_nvriva_c::update_color_bytes_iifc(nv04_channel* ch)
 {
   BX_NVRIVA_THIS update_color_bytes(0,
     ch->iifc_color_fmt, &ch->iifc_color_bytes);
@@ -3100,7 +3140,559 @@ void bx_nvriva_c::update_color_bytes(Bit32u s2d_color_fmt, Bit32u color_fmt, Bit
     BX_ERROR(("unknown color format: 0x%02x", color_fmt));
 }
 
-void bx_nvriva_c::execute_iifc(gf_channel* ch, Bit32u method, Bit32u param)
+bool bx_nvriva_c::d3d_scissor_clip(nv04_channel* ch, Bit32u* x, Bit32u* y, Bit32u* width, Bit32u* height)
+{
+  Bit32s scissor_x1 = ch->d3d_scissor_x;
+  Bit32s scissor_y1 = ch->d3d_scissor_y;
+  Bit32s scissor_x2 = scissor_x1 + ch->d3d_scissor_width;
+  Bit32s scissor_y2 = scissor_y1 + ch->d3d_scissor_height;
+  Bit32s surf_x2 = *x + *width;
+  Bit32s surf_y2 = *y + *height;
+  if (scissor_x1 >= surf_x2 || scissor_x2 <= (Bit32s)*x ||
+      scissor_y1 >= surf_y2 || scissor_y2 <= (Bit32s)*y)
+    return false;
+  *x = BX_MAX((Bit32s)*x, scissor_x1);
+  *y = BX_MAX((Bit32s)*y, scissor_y1);
+  *width = BX_MIN(surf_x2, scissor_x2) - *x;
+  *height = BX_MIN(surf_y2, scissor_y2) - *y;
+  return true;
+}
+
+void bx_nvriva_c::d3d_clear_surface(nv04_channel* ch)
+{
+  // NV04_3D surface clear with semaphore synchronization
+  Bit32u dx = ch->d3d_clip_horizontal & 0xFFFF;
+  Bit32u dy = ch->d3d_clip_vertical & 0xFFFF;
+  Bit32u width = ch->d3d_clip_horizontal >> 16;
+  Bit32u height = ch->d3d_clip_vertical >> 16;
+  if (!d3d_scissor_clip(ch, &dx, &dy, &width, &height))
+    return;
+  
+  // Wait for any pending semaphore operations
+  if (!d3d_semaphore_wait(ch, 0)) {
+    BX_DEBUG(("D3D clear surface: waiting for semaphore"));
+    return; // Wait for semaphore to be ready
+  }
+  
+  if (ch->d3d_clear_surface & 0x000000F0) {
+    Bit32u pitch = ch->d3d_surface_pitch_a & 0xFFFF;
+    Bit32u draw_offset = ch->d3d_surface_color_offset +
+      dy * pitch + dx * ch->d3d_color_bytes;
+    Bit32u redraw_offset = dma_lin_lookup(ch->d3d_color_obj, draw_offset) -
+      BX_NVRIVA_THIS disp_offset;
+    for (Bit32u y = 0; y < height; y++) {
+      for (Bit32u x = 0; x < width; x++) {
+        if (ch->d3d_color_bytes == 2)
+          dma_write16(ch->d3d_color_obj, draw_offset + x * 2, ch->d3d_color_clear_value);
+        else
+          dma_write32(ch->d3d_color_obj, draw_offset + x * 4, ch->d3d_color_clear_value);
+      }
+      draw_offset += pitch;
+    }
+    BX_NVRIVA_THIS redraw_area_nd(redraw_offset, width, height);
+  }
+  if (ch->d3d_clear_surface & 0x00000001) {
+    Bit32u pitch = d3d_get_surface_pitch_z(ch);
+    Bit32u draw_offset = ch->d3d_surface_zeta_offset +
+      dy * pitch + dx * ch->d3d_depth_bytes;
+    for (Bit32u y = 0; y < height; y++) {
+      for (Bit32u x = 0; x < width; x++) {
+        if (ch->d3d_depth_bytes == 2)
+          dma_write16(ch->d3d_zeta_obj, draw_offset + x * 2, ch->d3d_zstencil_clear_value);
+        else
+          dma_write32(ch->d3d_zeta_obj, draw_offset + x * 4, ch->d3d_zstencil_clear_value);
+      }
+      draw_offset += pitch;
+    }
+  }
+  
+  // Notify semaphore that clear operation is complete
+  d3d_semaphore_notify(ch, 1);
+}
+
+Bit32u bx_nvriva_c::d3d_get_surface_pitch_z(nv04_channel* ch)
+{
+  return ch->d3d_surface_pitch_z & 0xFFFF;
+}
+
+// NV04_3D specific semaphore synchronization functions
+void bx_nvriva_c::d3d_semaphore_notify(nv04_channel* ch, Bit32u value)
+{
+  // NV04_3D DMA_NOTIFY semaphore operation
+  if (ch->d3d_semaphore_obj) {
+    // Write semaphore value to DMA_NOTIFY object
+    dma_write32(ch->d3d_semaphore_obj, 0x0, value);
+    BX_DEBUG(("D3D semaphore notify: obj=0x%08x, value=0x%08x", 
+      ch->d3d_semaphore_obj, value));
+  }
+}
+
+bool bx_nvriva_c::d3d_semaphore_wait(nv04_channel* ch, Bit32u expected_value)
+{
+  // NV04_3D DMA_NOTIFY semaphore wait operation
+  if (ch->d3d_semaphore_obj) {
+    Bit32u current_value = dma_read32(ch->d3d_semaphore_obj, 0x0);
+    if (current_value != expected_value) {
+      BX_DEBUG(("D3D semaphore wait: obj=0x%08x, expected=0x%08x, current=0x%08x", 
+        ch->d3d_semaphore_obj, expected_value, current_value));
+      return false; // Semaphore not ready
+    }
+    return true; // Semaphore ready
+  }
+  return true; // No semaphore object, assume ready
+}
+
+void bx_nvriva_c::d3d_apply_fog_color(nv04_channel* ch, Bit32u* color)
+{
+  // Apply fog color to a pixel color if fog is enabled
+  if (ch->d3d_fog_enable) {
+    // Simple fog application - blend with fog color based on alpha
+    float fog_factor = ch->d3d_fog_color_a / 255.0f;
+    *color = d3d_blend_fog_color(ch, *color, fog_factor);
+  }
+}
+
+Bit32u bx_nvriva_c::d3d_blend_fog_color(nv04_channel* ch, Bit32u original_color, float fog_factor)
+{
+  // Blend original color with fog color
+  // Extract original color components
+  Bit8u orig_r = (original_color >> 16) & 0xFF;
+  Bit8u orig_g = (original_color >> 8) & 0xFF;
+  Bit8u orig_b = original_color & 0xFF;
+  Bit8u orig_a = (original_color >> 24) & 0xFF;
+  
+  // Blend with fog color
+  Bit8u new_r = (Bit8u)(orig_r * (1.0f - fog_factor) + ch->d3d_fog_color_r * fog_factor);
+  Bit8u new_g = (Bit8u)(orig_g * (1.0f - fog_factor) + ch->d3d_fog_color_g * fog_factor);
+  Bit8u new_b = (Bit8u)(orig_b * (1.0f - fog_factor) + ch->d3d_fog_color_b * fog_factor);
+  Bit8u new_a = (Bit8u)(orig_a * (1.0f - fog_factor) + ch->d3d_fog_color_a * fog_factor);
+  
+  // Reconstruct color value
+  return (new_a << 24) | (new_r << 16) | (new_g << 8) | new_b;
+}
+
+bool bx_nvriva_c::d3d_alpha_test(nv04_channel* ch, Bit8u alpha)
+{
+  // Perform alpha test based on control register settings
+  if (!ch->d3d_alpha_enable) {
+    return true; // Alpha test disabled, always pass
+  }
+  
+  Bit8u alpha_ref = ch->d3d_alpha_ref;
+  Bit8u alpha_func = ch->d3d_alpha_func;
+  
+  switch (alpha_func) {
+    case 0x1: // NEVER
+      return false;
+    case 0x2: // LESS
+      return alpha < alpha_ref;
+    case 0x3: // EQUAL
+      return alpha == alpha_ref;
+    case 0x4: // LEQUAL
+      return alpha <= alpha_ref;
+    case 0x5: // GREATER
+      return alpha > alpha_ref;
+    case 0x6: // NOTEQUAL
+      return alpha != alpha_ref;
+    case 0x7: // GEQUAL
+      return alpha >= alpha_ref;
+    case 0x8: // ALWAYS
+    default:
+      return true;
+  }
+}
+
+bool bx_nvriva_c::d3d_z_test(nv04_channel* ch, float z_value, float z_buffer_value)
+{
+  // Perform Z-buffer test based on control register settings
+  if (!ch->d3d_z_enable) {
+    return true; // Z-test disabled, always pass
+  }
+  
+  Bit8u z_func = ch->d3d_z_func;
+  
+  switch (z_func) {
+    case 0x1: // NEVER
+      return false;
+    case 0x2: // LESS
+      return z_value < z_buffer_value;
+    case 0x3: // EQUAL
+      return z_value == z_buffer_value;
+    case 0x4: // LEQUAL
+      return z_value <= z_buffer_value;
+    case 0x5: // GREATER
+      return z_value > z_buffer_value;
+    case 0x6: // NOTEQUAL
+      return z_value != z_buffer_value;
+    case 0x7: // GEQUAL
+      return z_value >= z_buffer_value;
+    case 0x8: // ALWAYS
+    default:
+      return true;
+  }
+}
+
+bool bx_nvriva_c::d3d_cull_triangle(nv04_channel* ch, float v0[4], float v1[4], float v2[4])
+{
+  // Perform triangle culling based on control register settings
+  Bit8u cull_mode = ch->d3d_cull_mode;
+  
+  switch (cull_mode) {
+    case 0x0: // BOTH - cull both front and back faces
+      return true; // Always cull
+    case 0x1: // NONE - don't cull any faces
+      return false; // Never cull
+    case 0x2: // CW - cull clockwise faces
+    case 0x3: // CCW - cull counter-clockwise faces
+    {
+      // Calculate triangle normal using cross product
+      float v01[3] = {v1[0] - v0[0], v1[1] - v0[1], v1[2] - v0[2]};
+      float v02[3] = {v2[0] - v0[0], v2[1] - v0[1], v2[2] - v0[2]};
+      
+      // Cross product: v01 × v02
+      float normal[3] = {
+        v01[1] * v02[2] - v01[2] * v02[1],
+        v01[2] * v02[0] - v01[0] * v02[2],
+        v01[0] * v02[1] - v01[1] * v02[0]
+      };
+      
+      // Determine winding order based on Z component of normal
+      bool is_clockwise = normal[2] < 0.0f;
+      
+      if (cull_mode == 0x2) { // CW
+        return is_clockwise;
+      } else { // CCW
+        return !is_clockwise;
+      }
+    }
+    default:
+      return false; // Default to no culling
+  }
+}
+
+Bit32u bx_nvriva_c::d3d_texture_blend(nv04_channel* ch, Bit32u tex_color, Bit32u vertex_color)
+{
+  // Apply colorkey transparency first
+  tex_color = d3d_apply_colorkey(ch, tex_color);
+  
+  // Apply texture blending based on texture map mode
+  Bit8u texture_map = ch->d3d_texture_map;
+  
+  // Extract color components
+  Bit8u tex_r = (tex_color >> 16) & 0xFF;
+  Bit8u tex_g = (tex_color >> 8) & 0xFF;
+  Bit8u tex_b = tex_color & 0xFF;
+  Bit8u tex_a = (tex_color >> 24) & 0xFF;
+  
+  Bit8u vert_r = (vertex_color >> 16) & 0xFF;
+  Bit8u vert_g = (vertex_color >> 8) & 0xFF;
+  Bit8u vert_b = vertex_color & 0xFF;
+  Bit8u vert_a = (vertex_color >> 24) & 0xFF;
+  
+  Bit8u result_r, result_g, result_b, result_a;
+  
+  switch (texture_map) {
+    case 0x1: // DECAL
+      result_r = tex_r;
+      result_g = tex_g;
+      result_b = tex_b;
+      result_a = vert_a;
+      break;
+    case 0x2: // MODULATE
+      result_r = (tex_r * vert_r) / 255;
+      result_g = (tex_g * vert_g) / 255;
+      result_b = (tex_b * vert_b) / 255;
+      result_a = vert_a;
+      break;
+    case 0x3: // DECALALPHA
+      result_r = (tex_r * tex_a + vert_r * (255 - tex_a)) / 255;
+      result_g = (tex_g * tex_a + vert_g * (255 - tex_a)) / 255;
+      result_b = (tex_b * tex_a + vert_b * (255 - tex_a)) / 255;
+      result_a = vert_a;
+      break;
+    case 0x4: // MODULATEALPHA
+      result_r = (tex_r * vert_r) / 255;
+      result_g = (tex_g * vert_g) / 255;
+      result_b = (tex_b * vert_b) / 255;
+      result_a = (tex_a * vert_a) / 255;
+      break;
+    case 0x5: // DECALMASK
+      result_r = tex_r;
+      result_g = tex_g;
+      result_b = tex_b;
+      result_a = vert_a;
+      break;
+    case 0x6: // MODULATEMASK
+      result_r = (tex_r * vert_r) / 255;
+      result_g = (tex_g * vert_g) / 255;
+      result_b = (tex_b * vert_b) / 255;
+      result_a = vert_a;
+      break;
+    case 0x7: // COPY
+      result_r = tex_r;
+      result_g = tex_g;
+      result_b = tex_b;
+      result_a = tex_a;
+      break;
+    case 0x8: // ADD
+      result_r = BX_MIN(255, tex_r + vert_r);
+      result_g = BX_MIN(255, tex_g + vert_g);
+      result_b = BX_MIN(255, tex_b + vert_b);
+      result_a = vert_a;
+      break;
+    default: // Default to modulate
+      result_r = (tex_r * vert_r) / 255;
+      result_g = (tex_g * vert_g) / 255;
+      result_b = (tex_b * vert_b) / 255;
+      result_a = vert_a;
+      break;
+  }
+  
+  return (result_a << 24) | (result_r << 16) | (result_g << 8) | result_b;
+}
+
+Bit32u bx_nvriva_c::d3d_alpha_blend(nv04_channel* ch, Bit32u src_color, Bit32u dst_color)
+{
+  // Perform alpha blending based on blend factors
+  if (!ch->d3d_blend_enable) {
+    return src_color; // No blending, return source color
+  }
+  
+  Bit32u src_factor = d3d_get_blend_factor(ch, ch->d3d_blend_src, src_color, dst_color);
+  Bit32u dst_factor = d3d_get_blend_factor(ch, ch->d3d_blend_dst, src_color, dst_color);
+  
+  // Extract color components
+  Bit8u src_r = (src_color >> 16) & 0xFF;
+  Bit8u src_g = (src_color >> 8) & 0xFF;
+  Bit8u src_b = src_color & 0xFF;
+  Bit8u src_a = (src_color >> 24) & 0xFF;
+  
+  Bit8u dst_r = (dst_color >> 16) & 0xFF;
+  Bit8u dst_g = (dst_color >> 8) & 0xFF;
+  Bit8u dst_b = dst_color & 0xFF;
+  Bit8u dst_a = (dst_color >> 24) & 0xFF;
+  
+  // Blend colors
+  Bit8u result_r = (src_r * src_factor + dst_r * dst_factor) / 255;
+  Bit8u result_g = (src_g * src_factor + dst_g * dst_factor) / 255;
+  Bit8u result_b = (src_b * src_factor + dst_b * dst_factor) / 255;
+  Bit8u result_a = (src_a * src_factor + dst_a * dst_factor) / 255;
+  
+  return (result_a << 24) | (result_r << 16) | (result_g << 8) | result_b;
+}
+
+Bit32u bx_nvriva_c::d3d_get_blend_factor(nv04_channel* ch, Bit8u factor, Bit32u src_color, Bit32u dst_color)
+{
+  // Get blend factor value based on factor type
+  Bit8u src_r = (src_color >> 16) & 0xFF;
+  Bit8u src_g = (src_color >> 8) & 0xFF;
+  Bit8u src_b = src_color & 0xFF;
+  Bit8u src_a = (src_color >> 24) & 0xFF;
+  
+  Bit8u dst_r = (dst_color >> 16) & 0xFF;
+  Bit8u dst_g = (dst_color >> 8) & 0xFF;
+  Bit8u dst_b = dst_color & 0xFF;
+  Bit8u dst_a = (dst_color >> 24) & 0xFF;
+  
+  switch (factor) {
+    case 0x1: // ZERO
+      return 0;
+    case 0x2: // ONE
+      return 255;
+    case 0x3: // SRC_COLOR
+      return (src_r + src_g + src_b) / 3;
+    case 0x4: // ONE_MINUS_SRC_COLOR
+      return 255 - (src_r + src_g + src_b) / 3;
+    case 0x5: // SRC_ALPHA
+      return src_a;
+    case 0x6: // ONE_MINUS_SRC_ALPHA
+      return 255 - src_a;
+    case 0x7: // DST_ALPHA
+      return dst_a;
+    case 0x8: // ONE_MINUS_DST_ALPHA
+      return 255 - dst_a;
+    case 0x9: // DST_COLOR
+      return (dst_r + dst_g + dst_b) / 3;
+    case 0xa: // ONE_MINUS_DST_COLOR
+      return 255 - (dst_r + dst_g + dst_b) / 3;
+    case 0xb: // SRC_ALPHA_SATURATE
+      return BX_MIN(src_a, 255 - dst_a);
+    default:
+      return 255; // Default to one
+  }
+}
+
+Bit32u bx_nvriva_c::d3d_sample_texture_filtered(nv04_channel* ch, Bit32u tex_obj, float u, float v, float lod)
+{
+  // Main texture sampling function that selects appropriate filtering method
+  if (lod > 0.0f) {
+    // Minification - use minify filter
+    switch (ch->d3d_minify_filter) {
+      case 0x1: // NEAREST
+        return d3d_sample_texture_nearest(ch, tex_obj, u, v, lod);
+      case 0x2: // LINEAR
+        return d3d_sample_texture_linear(ch, tex_obj, u, v, lod);
+      case 0x3: // NEAREST_MIPMAP_NEAREST
+      case 0x4: // LINEAR_MIPMAP_NEAREST
+      case 0x5: // NEAREST_MIPMAP_LINEAR
+      case 0x6: // LINEAR_MIPMAP_LINEAR
+        return d3d_sample_texture_mipmap(ch, tex_obj, u, v, lod);
+      default:
+        return d3d_sample_texture_nearest(ch, tex_obj, u, v, lod);
+    }
+  } else {
+    // Magnification - use magnify filter
+    switch (ch->d3d_magnify_filter) {
+      case 0x1: // NEAREST
+        return d3d_sample_texture_nearest(ch, tex_obj, u, v, lod);
+      case 0x2: // LINEAR
+        return d3d_sample_texture_linear(ch, tex_obj, u, v, lod);
+      default:
+        return d3d_sample_texture_nearest(ch, tex_obj, u, v, lod);
+    }
+  }
+}
+
+Bit32u bx_nvriva_c::d3d_sample_texture_nearest(nv04_channel* ch, Bit32u tex_obj, float u, float v, float lod)
+{
+  // Nearest neighbor texture sampling
+  // Convert normalized coordinates to texture coordinates
+  int tex_width = 256; // Default texture width
+  int tex_height = 256; // Default texture height
+  
+  int x = (int)(u * tex_width) % tex_width;
+  int y = (int)(v * tex_height) % tex_height;
+  
+  // Sample texture at integer coordinates with offset
+  Bit32u tex_offset = y * tex_width + x;
+  return dma_read32(tex_obj + ch->d3d_texture_offset, tex_offset * 4);
+}
+
+Bit32u bx_nvriva_c::d3d_sample_texture_linear(nv04_channel* ch, Bit32u tex_obj, float u, float v, float lod)
+{
+  // Linear interpolation texture sampling
+  int tex_width = 256; // Default texture width
+  int tex_height = 256; // Default texture height
+  
+  float x = u * tex_width;
+  float y = v * tex_height;
+  
+  int x0 = (int)x % tex_width;
+  int y0 = (int)y % tex_height;
+  int x1 = (x0 + 1) % tex_width;
+  int y1 = (y0 + 1) % tex_height;
+  
+  float fx = x - (int)x;
+  float fy = y - (int)y;
+  
+  // Sample four neighboring texels with offset
+  Bit32u c00 = dma_read32(tex_obj + ch->d3d_texture_offset, (y0 * tex_width + x0) * 4);
+  Bit32u c01 = dma_read32(tex_obj + ch->d3d_texture_offset, (y0 * tex_width + x1) * 4);
+  Bit32u c10 = dma_read32(tex_obj + ch->d3d_texture_offset, (y1 * tex_width + x0) * 4);
+  Bit32u c11 = dma_read32(tex_obj + ch->d3d_texture_offset, (y1 * tex_width + x1) * 4);
+  
+  // Extract color components
+  Bit8u c00_r = (c00 >> 16) & 0xFF;
+  Bit8u c00_g = (c00 >> 8) & 0xFF;
+  Bit8u c00_b = c00 & 0xFF;
+  Bit8u c00_a = (c00 >> 24) & 0xFF;
+  
+  Bit8u c01_r = (c01 >> 16) & 0xFF;
+  Bit8u c01_g = (c01 >> 8) & 0xFF;
+  Bit8u c01_b = c01 & 0xFF;
+  Bit8u c01_a = (c01 >> 24) & 0xFF;
+  
+  Bit8u c10_r = (c10 >> 16) & 0xFF;
+  Bit8u c10_g = (c10 >> 8) & 0xFF;
+  Bit8u c10_b = c10 & 0xFF;
+  Bit8u c10_a = (c10 >> 24) & 0xFF;
+  
+  Bit8u c11_r = (c11 >> 16) & 0xFF;
+  Bit8u c11_g = (c11 >> 8) & 0xFF;
+  Bit8u c11_b = c11 & 0xFF;
+  Bit8u c11_a = (c11 >> 24) & 0xFF;
+  
+  // Linear interpolation
+  Bit8u r = (Bit8u)(c00_r * (1-fx) * (1-fy) + c01_r * fx * (1-fy) + c10_r * (1-fx) * fy + c11_r * fx * fy);
+  Bit8u g = (Bit8u)(c00_g * (1-fx) * (1-fy) + c01_g * fx * (1-fy) + c10_g * (1-fx) * fy + c11_g * fx * fy);
+  Bit8u b = (Bit8u)(c00_b * (1-fx) * (1-fy) + c01_b * fx * (1-fy) + c10_b * (1-fx) * fy + c11_b * fx * fy);
+  Bit8u a = (Bit8u)(c00_a * (1-fx) * (1-fy) + c01_a * fx * (1-fy) + c10_a * (1-fx) * fy + c11_a * fx * fy);
+  
+  return (a << 24) | (r << 16) | (g << 8) | b;
+}
+
+Bit32u bx_nvriva_c::d3d_sample_texture_mipmap(nv04_channel* ch, Bit32u tex_obj, float u, float v, float lod)
+{
+  // Mipmap texture sampling
+  // Calculate mipmap level based on LOD
+  int mip_level = (int)(lod + ch->d3d_mipmap_lodbias);
+  mip_level = BX_MAX(0, BX_MIN(7, mip_level)); // Clamp to valid mipmap levels
+  
+  // Calculate texture dimensions for this mipmap level
+  int tex_width = 256 >> mip_level;
+  int tex_height = 256 >> mip_level;
+  tex_width = BX_MAX(1, tex_width);
+  tex_height = BX_MAX(1, tex_height);
+  
+  // Calculate mipmap offset (simplified - assumes consecutive mipmap levels)
+  Bit32u mip_offset = 0;
+  for (int i = 0; i < mip_level; i++) {
+    int level_width = 256 >> i;
+    int level_height = 256 >> i;
+    level_width = BX_MAX(1, level_width);
+    level_height = BX_MAX(1, level_height);
+    mip_offset += level_width * level_height * 4;
+  }
+  
+  // Sample texture at mipmap level with offset
+  if (ch->d3d_minify_filter == 0x3 || ch->d3d_minify_filter == 0x5) {
+    // Nearest mipmap filtering
+    return d3d_sample_texture_nearest(ch, tex_obj + ch->d3d_texture_offset + mip_offset, u, v, lod);
+  } else {
+    // Linear mipmap filtering
+    return d3d_sample_texture_linear(ch, tex_obj + ch->d3d_texture_offset + mip_offset, u, v, lod);
+  }
+}
+
+Bit32u bx_nvriva_c::d3d_get_texture_offset(nv04_channel* ch)
+{
+  // Get the current texture offset
+  return ch->d3d_texture_offset;
+}
+
+bool bx_nvriva_c::d3d_is_colorkey(nv04_channel* ch, Bit32u color)
+{
+  // Check if a color matches the colorkey
+  if (!ch->d3d_colorkey_enable) {
+    return false; // Colorkey disabled
+  }
+  
+  // Extract color components
+  Bit8u color_r = (color >> 16) & 0xFF;
+  Bit8u color_g = (color >> 8) & 0xFF;
+  Bit8u color_b = color & 0xFF;
+  Bit8u color_a = (color >> 24) & 0xFF;
+  
+  // Compare with colorkey (exact match)
+  return (color_r == ch->d3d_colorkey_r && 
+          color_g == ch->d3d_colorkey_g && 
+          color_b == ch->d3d_colorkey_b && 
+          color_a == ch->d3d_colorkey_a);
+}
+
+Bit32u bx_nvriva_c::d3d_apply_colorkey(nv04_channel* ch, Bit32u tex_color)
+{
+  // Apply colorkey transparency to texture color
+  if (d3d_is_colorkey(ch, tex_color)) {
+    // Return transparent color (alpha = 0)
+    return tex_color & 0x00FFFFFF; // Clear alpha channel
+  }
+  
+  // Return original color if not colorkey
+  return tex_color;
+}
+
+void bx_nvriva_c::execute_iifc(nv04_channel* ch, Bit32u method, Bit32u param)
 {
   if (method == 0x061)
     ch->iifc_palette = param;
@@ -3139,7 +3731,7 @@ void bx_nvriva_c::execute_iifc(gf_channel* ch, Bit32u method, Bit32u param)
   }
 }
 
-void bx_nvriva_c::execute_sifc(gf_channel* ch, Bit32u method, Bit32u param)
+void bx_nvriva_c::execute_sifc(nv04_channel* ch, Bit32u method, Bit32u param)
 {
   if (method == 0x0bf)
     ch->sifc_operation = param;
@@ -3178,13 +3770,13 @@ void bx_nvriva_c::execute_sifc(gf_channel* ch, Bit32u method, Bit32u param)
   }
 }
 
-void bx_nvriva_c::execute_beta(gf_channel* ch, Bit32u method, Bit32u param)
+void bx_nvriva_c::execute_beta(nv04_channel* ch, Bit32u method, Bit32u param)
 {
   if (method == 0x0c0)
     ch->beta = param;
 }
 
-void bx_nvriva_c::execute_tfc(gf_channel* ch, Bit32u method, Bit32u param)
+void bx_nvriva_c::execute_tfc(nv04_channel* ch, Bit32u method, Bit32u param)
 {
   if (method == 0x061) {
     Bit8u cls8 = ramin_read32(param);
@@ -3231,7 +3823,7 @@ void bx_nvriva_c::execute_tfc(gf_channel* ch, Bit32u method, Bit32u param)
   }
 }
 
-void bx_nvriva_c::execute_sifm(gf_channel* ch, Bit32u method, Bit32u param)
+void bx_nvriva_c::execute_sifm(nv04_channel* ch, Bit32u method, Bit32u param)
 {
   if (method == 0x061)
     ch->sifm_src = param;
@@ -3275,9 +3867,550 @@ void bx_nvriva_c::execute_sifm(gf_channel* ch, Bit32u method, Bit32u param)
   }
 }
 
-void bx_nvriva_c::execute_d3d(gf_channel* ch, Bit32u cls, Bit32u method, Bit32u param)
+void bx_nvriva_c::execute_d3d(nv04_channel* ch, Bit32u cls, Bit32u method, Bit32u param)
 {
-  // TODO
+  // D3D object assignments
+  if (method == 0x060)
+    ch->d3d_a_obj = param;
+  else if (method == 0x061)
+    ch->d3d_b_obj = param;
+  else if (method == 0x065)
+    ch->d3d_color_obj = param;
+  else if (method == 0x066)
+    ch->d3d_zeta_obj = param;
+  else if (method == 0x067)
+    ch->d3d_vertex_a_obj = param;
+  else if (method == 0x068)
+    ch->d3d_vertex_b_obj = param;
+  else if (method == 0x069)
+    ch->d3d_semaphore_obj = param;
+  else if (method == 0x06a)
+    ch->d3d_report_obj = param;
+  else if (method == NV04_CONTEXT_SURFACES_3D_CLIP_HORIZONTAL) {
+    // NV04_CONTEXT_SURFACES_3D_CLIP_HORIZONTAL
+    ch->d3d_clip_horizontal = param;
+    Bit32u clip_x = param & 0xFFFF;
+    Bit32u clip_w = param >> 16;
+    BX_DEBUG(("D3D clip horizontal: x=%d, w=%d", clip_x, clip_w));
+  } else if (method == NV04_CONTEXT_SURFACES_3D_CLIP_VERTICAL) {
+    // NV04_CONTEXT_SURFACES_3D_CLIP_VERTICAL
+    ch->d3d_clip_vertical = param;
+    Bit32u clip_y = param & 0xFFFF;
+    Bit32u clip_h = param >> 16;
+    BX_DEBUG(("D3D clip vertical: y=%d, h=%d", clip_y, clip_h));
+  }
+  else if (method == NV04_CONTEXT_SURFACES_3D_FORMAT) {
+    // NV04_CONTEXT_SURFACES_3D_FORMAT
+    ch->d3d_surface_format = param;
+    Bit32u format_color = param & 0xFF;
+    Bit32u format_depth = (param >> 8) & 0xFF;
+    Bit32u format_type = (param >> 8) & 0xFF;
+    
+    // Handle NV04_3D XML format types
+    if (format_type == 0x01) { // NV04_CONTEXT_SURFACES_3D_FORMAT_TYPE_PITCH
+      BX_DEBUG(("D3D surface format: PITCH type"));
+    } else if (format_type == 0x02) { // NV04_CONTEXT_SURFACES_3D_FORMAT_TYPE_SWIZZLE
+      BX_DEBUG(("D3D surface format: SWIZZLE type"));
+    }
+    
+    // Handle color formats from NV04_3D XML
+    if (format_color == 0x01)      // X1R5G5B5_Z1R5G5B5
+      ch->d3d_color_bytes = 2;
+    else if (format_color == 0x02) // X1R5G5B5_X1R5G5B5
+      ch->d3d_color_bytes = 2;
+    else if (format_color == 0x03) // R5G6B5
+      ch->d3d_color_bytes = 2;
+    else if (format_color == 0x04) // X8R8G8B8_Z8R8G8B8
+      ch->d3d_color_bytes = 4;
+    else if (format_color == 0x05) // X8R8G8B8_X8R8G8B8
+      ch->d3d_color_bytes = 4;
+    else if (format_color == 0x06) // X1A7R8G8B8_Z1A7R8G8B8
+      ch->d3d_color_bytes = 4;
+    else if (format_color == 0x07) // X1A7R8G8B8_X1A7R8G8B8
+      ch->d3d_color_bytes = 4;
+    else if (format_color == 0x08) // A8R8G8B8
+      ch->d3d_color_bytes = 4;
+    else
+      ch->d3d_color_bytes = 4; // default
+    
+    if (format_depth == 0x01)      // Z16
+      ch->d3d_depth_bytes = 2;
+    else if (format_depth == 0x02) // Z24
+      ch->d3d_depth_bytes = 4;
+    else if (format_depth == 0x03) // Z32
+      ch->d3d_depth_bytes = 4;
+    else
+      ch->d3d_depth_bytes = 4; // default
+  } else if (method == NV04_CONTEXT_SURFACES_3D_PITCH) {
+    // NV04_CONTEXT_SURFACES_3D_PITCH
+    ch->d3d_surface_pitch_a = param;
+    Bit32u pitch_color = param & 0xFFFF;
+    Bit32u pitch_zeta = param >> 16;
+    BX_DEBUG(("D3D surface pitch: color=%d, zeta=%d", pitch_color, pitch_zeta));
+  } else if (method == 0x084) {
+    // Additional pitch register (not in NV04_3D XML, but used for compatibility)
+    ch->d3d_surface_pitch_z = param;
+  }
+  else if (method == 0x085)
+    ch->d3d_window_offset_x = param;
+  else if (method == 0x086)
+    ch->d3d_window_offset_y = param;
+  else if (method == NV04_CONTEXT_SURFACES_3D_OFFSET_COLOR) {
+    // NV04_CONTEXT_SURFACES_3D_OFFSET_COLOR
+    ch->d3d_surface_color_offset = param;
+    BX_DEBUG(("D3D color offset: 0x%08x", param));
+  } else if (method == NV04_CONTEXT_SURFACES_3D_OFFSET_ZETA) {
+    // NV04_CONTEXT_SURFACES_3D_OFFSET_ZETA
+    ch->d3d_surface_zeta_offset = param;
+    BX_DEBUG(("D3D zeta offset: 0x%08x", param));
+  }
+  else if (method == 0x089)
+    ch->d3d_alpha_test_enable = param;
+  else if (method == 0x08a)
+    ch->d3d_alpha_func = param;
+  else if (method == 0x08b)
+    ch->d3d_alpha_ref = param;
+  else if (method == 0x08c)
+    ch->d3d_blend_enable = param;
+  else if (method == 0x08d)
+    ch->d3d_blend_sfactor_rgb = param;
+  else if (method == 0x08e)
+    ch->d3d_blend_sfactor_alpha = param;
+  else if (method == 0x08f)
+    ch->d3d_blend_dfactor_rgb = param;
+  else if (method == 0x090)
+    ch->d3d_blend_dfactor_alpha = param;
+  else if (method == 0x091)
+    ch->d3d_blend_equation_rgb = param;
+  else if (method == 0x092)
+    ch->d3d_blend_equation_alpha = param;
+  else if (method == 0x093)
+    ch->d3d_blend_color[0] = *(float*)&param;
+  else if (method == 0x094)
+    ch->d3d_blend_color[1] = *(float*)&param;
+  else if (method == 0x095)
+    ch->d3d_blend_color[2] = *(float*)&param;
+  else if (method == 0x096)
+    ch->d3d_blend_color[3] = *(float*)&param;
+  else if (method == 0x097)
+    ch->d3d_cull_face_enable = param;
+  else if (method == 0x098)
+    ch->d3d_depth_test_enable = param;
+  else if (method == 0x099)
+    ch->d3d_depth_write_enable = param;
+  else if (method == 0x09a)
+    ch->d3d_lighting_enable = param;
+  else if (method == 0x09b)
+    ch->d3d_depth_func = param;
+  else if (method == 0x09c)
+    ch->d3d_shade_mode = param;
+  else if (method == 0x09d)
+    ch->d3d_clip_min = *(float*)&param;
+  else if (method == 0x09e)
+    ch->d3d_clip_max = *(float*)&param;
+  else if (method == 0x09f)
+    ch->d3d_cull_face = param;
+  else if (method == 0x0a0)
+    ch->d3d_front_face = param;
+  else if (method == 0x0a1)
+    ch->d3d_light_enable_mask = param;
+  else if (method == 0x0a2)
+    ch->d3d_inverse_model_view_matrix[0] = *(float*)&param;
+  else if (method == 0x0a3)
+    ch->d3d_inverse_model_view_matrix[1] = *(float*)&param;
+  else if (method == 0x0a4)
+    ch->d3d_inverse_model_view_matrix[2] = *(float*)&param;
+  else if (method == 0x0a5)
+    ch->d3d_inverse_model_view_matrix[3] = *(float*)&param;
+  else if (method == 0x0a6)
+    ch->d3d_inverse_model_view_matrix[4] = *(float*)&param;
+  else if (method == 0x0a7)
+    ch->d3d_inverse_model_view_matrix[5] = *(float*)&param;
+  else if (method == 0x0a8)
+    ch->d3d_inverse_model_view_matrix[6] = *(float*)&param;
+  else if (method == 0x0a9)
+    ch->d3d_inverse_model_view_matrix[7] = *(float*)&param;
+  else if (method == 0x0aa)
+    ch->d3d_inverse_model_view_matrix[8] = *(float*)&param;
+  else if (method == 0x0ab)
+    ch->d3d_inverse_model_view_matrix[9] = *(float*)&param;
+  else if (method == 0x0ac)
+    ch->d3d_inverse_model_view_matrix[10] = *(float*)&param;
+  else if (method == 0x0ad)
+    ch->d3d_inverse_model_view_matrix[11] = *(float*)&param;
+  else if (method == 0x0ae)
+    ch->d3d_composite_matrix[0] = *(float*)&param;
+  else if (method == 0x0af)
+    ch->d3d_composite_matrix[1] = *(float*)&param;
+  else if (method == 0x0b0)
+    ch->d3d_composite_matrix[2] = *(float*)&param;
+  else if (method == 0x0b1)
+    ch->d3d_composite_matrix[3] = *(float*)&param;
+  else if (method == 0x0b2)
+    ch->d3d_composite_matrix[4] = *(float*)&param;
+  else if (method == 0x0b3)
+    ch->d3d_composite_matrix[5] = *(float*)&param;
+  else if (method == 0x0b4)
+    ch->d3d_composite_matrix[6] = *(float*)&param;
+  else if (method == 0x0b5)
+    ch->d3d_composite_matrix[7] = *(float*)&param;
+  else if (method == 0x0b6)
+    ch->d3d_composite_matrix[8] = *(float*)&param;
+  else if (method == 0x0b7)
+    ch->d3d_composite_matrix[9] = *(float*)&param;
+  else if (method == 0x0b8)
+    ch->d3d_composite_matrix[10] = *(float*)&param;
+  else if (method == 0x0b9)
+    ch->d3d_composite_matrix[11] = *(float*)&param;
+  else if (method == 0x0ba)
+    ch->d3d_composite_matrix[12] = *(float*)&param;
+  else if (method == 0x0bb)
+    ch->d3d_composite_matrix[13] = *(float*)&param;
+  else if (method == 0x0bc)
+    ch->d3d_composite_matrix[14] = *(float*)&param;
+  else if (method == 0x0bd)
+    ch->d3d_composite_matrix[15] = *(float*)&param;
+  else if (method == 0x0be)
+    ch->d3d_scissor_x = param;
+  else if (method == 0x0bf)
+    ch->d3d_scissor_width = param;
+  else if (method == 0x0c0)
+    ch->d3d_scissor_y = param;
+  else if (method == 0x0c1)
+    ch->d3d_scissor_height = param;
+  else if (method == 0x0c2)
+    ch->d3d_shader_program = param;
+  else if (method == 0x0c3)
+    ch->d3d_shader_obj = param;
+  else if (method == 0x0c4)
+    ch->d3d_shader_offset = param;
+  else if (method == 0x0c5)
+    ch->d3d_scene_ambient_color[0] = *(float*)&param;
+  else if (method == 0x0c6)
+    ch->d3d_scene_ambient_color[1] = *(float*)&param;
+  else if (method == 0x0c7)
+    ch->d3d_scene_ambient_color[2] = *(float*)&param;
+  else if (method == 0x0c8)
+    ch->d3d_scene_ambient_color[3] = *(float*)&param;
+  else if (method == 0x0c9)
+    ch->d3d_viewport_horizontal = param;
+  else if (method == 0x0ca)
+    ch->d3d_viewport_vertical = param;
+  else if (method == 0x0cb)
+    ch->d3d_viewport_offset[0] = *(float*)&param;
+  else if (method == 0x0cc)
+    ch->d3d_viewport_offset[1] = *(float*)&param;
+  else if (method == 0x0cd)
+    ch->d3d_viewport_offset[2] = *(float*)&param;
+  else if (method == 0x0ce)
+    ch->d3d_viewport_offset[3] = *(float*)&param;
+  else if (method == 0x0cf)
+    ch->d3d_viewport_scale[0] = *(float*)&param;
+  else if (method == 0x0d0)
+    ch->d3d_viewport_scale[1] = *(float*)&param;
+  else if (method == 0x0d1)
+    ch->d3d_viewport_scale[2] = *(float*)&param;
+  else if (method == 0x0d2)
+    ch->d3d_viewport_scale[3] = *(float*)&param;
+  else if (method == 0x0d3)
+    ch->d3d_transform_program[0][0] = param;
+  else if (method == 0x0d4)
+    ch->d3d_transform_program[0][1] = param;
+  else if (method == 0x0d5)
+    ch->d3d_transform_program[0][2] = param;
+  else if (method == 0x0d6)
+    ch->d3d_transform_program[0][3] = param;
+  else if (method == 0x0d7)
+    ch->d3d_transform_constant[0][0] = *(float*)&param;
+  else if (method == 0x0d8)
+    ch->d3d_transform_constant[0][1] = *(float*)&param;
+  else if (method == 0x0d9)
+    ch->d3d_transform_constant[0][2] = *(float*)&param;
+  else if (method == 0x0da)
+    ch->d3d_transform_constant[0][3] = *(float*)&param;
+  else if (method == 0x0db)
+    ch->d3d_light_diffuse_color[0][0] = *(float*)&param;
+  else if (method == 0x0dc)
+    ch->d3d_light_diffuse_color[0][1] = *(float*)&param;
+  else if (method == 0x0dd)
+    ch->d3d_light_diffuse_color[0][2] = *(float*)&param;
+  else if (method == 0x0de)
+    ch->d3d_light_infinite_direction[0][0] = *(float*)&param;
+  else if (method == 0x0df)
+    ch->d3d_light_infinite_direction[0][1] = *(float*)&param;
+  else if (method == 0x0e0)
+    ch->d3d_light_infinite_direction[0][2] = *(float*)&param;
+  else if (method == 0x0e1)
+    ch->d3d_normal[0] = *(float*)&param;
+  else if (method == 0x0e2)
+    ch->d3d_normal[1] = *(float*)&param;
+  else if (method == 0x0e3)
+    ch->d3d_normal[2] = *(float*)&param;
+  else if (method == 0x0e4)
+    ch->d3d_diffuse_color[0] = *(float*)&param;
+  else if (method == 0x0e5)
+    ch->d3d_diffuse_color[1] = *(float*)&param;
+  else if (method == 0x0e6)
+    ch->d3d_diffuse_color[2] = *(float*)&param;
+  else if (method == 0x0e7)
+    ch->d3d_diffuse_color[3] = *(float*)&param;
+  else if (method == 0x0e8)
+    ch->d3d_texcoord[0][0] = *(float*)&param;
+  else if (method == 0x0e9)
+    ch->d3d_texcoord[0][1] = *(float*)&param;
+  else if (method == 0x0ea)
+    ch->d3d_texcoord[0][2] = *(float*)&param;
+  else if (method == 0x0eb)
+    ch->d3d_texcoord[0][3] = *(float*)&param;
+  else if (method == 0x0ec)
+    ch->d3d_texcoord[1][0] = *(float*)&param;
+  else if (method == 0x0ed)
+    ch->d3d_texcoord[1][1] = *(float*)&param;
+  else if (method == 0x0ee)
+    ch->d3d_texcoord[1][2] = *(float*)&param;
+  else if (method == 0x0ef)
+    ch->d3d_texcoord[1][3] = *(float*)&param;
+  else if (method == 0x0f0)
+    ch->d3d_texcoord[2][0] = *(float*)&param;
+  else if (method == 0x0f1)
+    ch->d3d_texcoord[2][1] = *(float*)&param;
+  else if (method == 0x0f2)
+    ch->d3d_texcoord[2][2] = *(float*)&param;
+  else if (method == 0x0f3)
+    ch->d3d_texcoord[2][3] = *(float*)&param;
+  else if (method == 0x0f4)
+    ch->d3d_texcoord[3][0] = *(float*)&param;
+  else if (method == 0x0f5)
+    ch->d3d_texcoord[3][1] = *(float*)&param;
+  else if (method == 0x0f6)
+    ch->d3d_texcoord[3][2] = *(float*)&param;
+  else if (method == 0x0f7)
+    ch->d3d_texcoord[3][3] = *(float*)&param;
+  else if (method == 0x0f8)
+    ch->d3d_vertex_data_array_offset[0] = param;
+  else if (method == 0x0f9)
+    ch->d3d_vertex_data_array_format_type[0] = param;
+  else if (method == 0x0fa)
+    ch->d3d_vertex_data_array_format_size[0] = param;
+  else if (method == 0x0fb)
+    ch->d3d_vertex_data_array_format_stride[0] = param;
+  else if (method == 0x0fc)
+    ch->d3d_vertex_data_array_format_dx[0] = (param != 0);
+  else if (method == 0x0fd)
+    ch->d3d_begin_end = param;
+  else if (method == 0x0fe)
+    ch->d3d_primitive_done = (param != 0);
+  else if (method == 0x0ff)
+    ch->d3d_triangle_flip = (param != 0);
+  else if (method == 0x100)
+    ch->d3d_vertex_index = param;
+  else if (method == 0x101)
+    ch->d3d_attrib_index = param;
+  else if (method == 0x102)
+    ch->d3d_comp_index = param;
+  else if (method == 0x103)
+    ch->d3d_vertex_data[0][0][0] = *(float*)&param;
+  else if (method == 0x104)
+    ch->d3d_vertex_data[0][0][1] = *(float*)&param;
+  else if (method == 0x105)
+    ch->d3d_vertex_data[0][0][2] = *(float*)&param;
+  else if (method == 0x106)
+    ch->d3d_vertex_data[0][0][3] = *(float*)&param;
+  else if (method == 0x107)
+    ch->d3d_index_array_offset = param;
+  else if (method == 0x108)
+    ch->d3d_index_array_dma = param;
+  else if (method == 0x109)
+    ch->d3d_texture_offset[0] = param;
+  else if (method == 0x10a)
+    ch->d3d_texture_format[0] = param;
+  else if (method == 0x10b)
+    ch->d3d_texture_address[0] = param;
+  else if (method == 0x10c)
+    ch->d3d_texture_control0[0] = param;
+  else if (method == 0x10d)
+    ch->d3d_texture_control1[0] = param;
+  else if (method == 0x10e)
+    ch->d3d_texture_filter[0] = param;
+  else if (method == 0x10f)
+    ch->d3d_texture_image_rect[0] = param;
+  else if (method == 0x110)
+    ch->d3d_texture_palette[0] = param;
+  else if (method == 0x111)
+    ch->d3d_texture_control3[0] = param;
+  // D3D semaphore operations - NV04_3D/NV05_3D specific
+  // Based on NV04_3D XML: DMA_NOTIFY at 0x180, DMA_COLOR at 0x184, DMA_ZETA at 0x188
+  else if (method == NV04_CONTEXT_SURFACES_3D_DMA_NOTIFY) {
+    // NV04_CONTEXT_SURFACES_3D_DMA_NOTIFY / NV04_TEXTURED_TRIANGLE_DMA_NOTIFY
+    // Set DMA notification object for semaphore operations
+    ch->d3d_semaphore_obj = param;
+    BX_DEBUG(("D3D DMA_NOTIFY semaphore object: 0x%08x", param));
+  } else if (method == NV04_CONTEXT_SURFACES_3D_DMA_COLOR) {
+    // NV04_CONTEXT_SURFACES_3D_DMA_COLOR / NV04_TEXTURED_TRIANGLE_DMA_A
+    // Set color buffer DMA object (used for semaphore operations)
+    ch->d3d_color_obj = param;
+    BX_DEBUG(("D3D DMA_COLOR object: 0x%08x", param));
+  } else if (method == NV04_CONTEXT_SURFACES_3D_DMA_ZETA) {
+    // NV04_CONTEXT_SURFACES_3D_DMA_ZETA / NV04_TEXTURED_TRIANGLE_DMA_B
+    // Set zeta buffer DMA object (used for semaphore operations)
+    ch->d3d_zeta_obj = param;
+    BX_DEBUG(("D3D DMA_ZETA object: 0x%08x", param));
+  } else if (method == 0x75b) {
+    // Legacy semaphore offset method (for compatibility)
+    ch->d3d_semaphore_offset = param;
+    BX_DEBUG(("D3D semaphore offset: 0x%08x", param));
+  } else if (method == 0x75c) {
+    // Legacy semaphore write method (for compatibility)
+    // Write semaphore value using DMA_NOTIFY object
+    if (ch->d3d_semaphore_obj) {
+      dma_write32(ch->d3d_semaphore_obj, ch->d3d_semaphore_offset, param);
+      BX_DEBUG(("D3D semaphore write: obj=0x%08x, offset=0x%08x, value=0x%08x",
+        ch->d3d_semaphore_obj, ch->d3d_semaphore_offset, param));
+    } else {
+      BX_DEBUG(("D3D semaphore write: no semaphore object set"));
+    }
+  } else if (method == 0x763)
+    ch->d3d_zstencil_clear_value = param;
+  else if (method == 0x764)
+    ch->d3d_color_clear_value = param;
+  else if (method == 0x765) {
+    ch->d3d_clear_surface = param;
+    d3d_clear_surface(ch);
+  } else if (method == 0x7a5)
+    ch->d3d_transform_execution_mode = param;
+  else if (method == 0x7a7)
+    ch->d3d_transform_program_load = param;
+  else if (method == 0x7a8)
+    ch->d3d_transform_program_start = param;
+  else if (method == 0x7a9)
+    ch->d3d_transform_constant_load = param;
+  else if (method == 0x7f1)
+    ch->d3d_attrib_color = param;
+  else if (method == 0x7f2) {
+    ch->d3d_dci = param & 0xf;
+    for (Bit32u i = 0; i < 8; i++)
+      ch->d3d_attrib_tex_coord[i] = (param >> (i * 4)) & 0xf;
+  } else if (method == 0x7f3) {
+    for (Bit32u i = 0; i < 2; i++)
+      ch->d3d_attrib_tex_coord[i + 8] = (param >> (i * 4)) & 0xf;
+  }   else if (method == 0x7f4)
+    ch->d3d_tex_coord_count = param;
+  // NV04_3D Textured Triangle specific methods
+  else if (method == NV04_TEXTURED_TRIANGLE_COLORKEY) {
+    // NV04_TEXTURED_TRIANGLE_COLORKEY
+    ch->d3d_colorkey = param;
+    
+    // Extract RGBA components according to NV04_3D XML masks
+    ch->d3d_colorkey_b = (param & NV04_TEXTURED_TRIANGLE_COLORKEY_B__MASK) >> NV04_TEXTURED_TRIANGLE_COLORKEY_B__SHIFT;
+    ch->d3d_colorkey_g = (param & NV04_TEXTURED_TRIANGLE_COLORKEY_G__MASK) >> NV04_TEXTURED_TRIANGLE_COLORKEY_G__SHIFT;
+    ch->d3d_colorkey_r = (param & NV04_TEXTURED_TRIANGLE_COLORKEY_R__MASK) >> NV04_TEXTURED_TRIANGLE_COLORKEY_R__SHIFT;
+    ch->d3d_colorkey_a = (param & NV04_TEXTURED_TRIANGLE_COLORKEY_A__MASK) >> NV04_TEXTURED_TRIANGLE_COLORKEY_A__SHIFT;
+    
+    BX_DEBUG(("D3D textured triangle colorkey: 0x%08x (R=%d, G=%d, B=%d, A=%d)", 
+      param, ch->d3d_colorkey_r, ch->d3d_colorkey_g, ch->d3d_colorkey_b, ch->d3d_colorkey_a));
+  } else if (method == NV04_TEXTURED_TRIANGLE_OFFSET) {
+    // NV04_TEXTURED_TRIANGLE_OFFSET
+    ch->d3d_offset = param;
+    ch->d3d_texture_offset = param;
+    BX_DEBUG(("D3D textured triangle offset: 0x%08x", param));
+  } else if (method == NV04_TEXTURED_TRIANGLE_FORMAT) {
+    // NV04_TEXTURED_TRIANGLE_FORMAT
+    Bit32u format_flags = param;
+    bool dma_a = format_flags & 0x01;
+    bool dma_b = format_flags & 0x02;
+    ch->d3d_colorkey_enable = (format_flags & 0x04) != 0;
+    BX_DEBUG(("D3D textured triangle format: dma_a=%d, dma_b=%d, colorkey=%d", 
+      dma_a, dma_b, ch->d3d_colorkey_enable));
+  } else if (method == NV04_TEXTURED_TRIANGLE_FILTER) {
+    // NV04_TEXTURED_TRIANGLE_FILTER
+    ch->d3d_filter = param;
+    
+    // Extract kernel size parameters
+    ch->d3d_kernel_size_x = (param & NV04_TEXTURED_TRIANGLE_FILTER_KERNEL_SIZE_X__MASK) >> NV04_TEXTURED_TRIANGLE_FILTER_KERNEL_SIZE_X__SHIFT;
+    ch->d3d_kernel_size_y = (param & NV04_TEXTURED_TRIANGLE_FILTER_KERNEL_SIZE_Y__MASK) >> NV04_TEXTURED_TRIANGLE_FILTER_KERNEL_SIZE_Y__SHIFT;
+    
+    // Extract mipmap parameters
+    ch->d3d_mipmap_dither_enable = (param & NV04_TEXTURED_TRIANGLE_FILTER_MIPMAP_DITHER_ENABLE) != 0;
+    ch->d3d_mipmap_lodbias = (param & NV04_TEXTURED_TRIANGLE_FILTER_MIPMAP_LODBIAS__MASK) >> NV04_TEXTURED_TRIANGLE_FILTER_MIPMAP_LODBIAS__SHIFT;
+    
+    // Extract filter modes
+    ch->d3d_minify_filter = (param & NV04_TEXTURED_TRIANGLE_FILTER_MINIFY__MASK) >> NV04_TEXTURED_TRIANGLE_FILTER_MINIFY__SHIFT;
+    ch->d3d_magnify_filter = (param & NV04_TEXTURED_TRIANGLE_FILTER_MAGNIFY__MASK) >> NV04_TEXTURED_TRIANGLE_FILTER_MAGNIFY__SHIFT;
+    
+    // Extract anisotropic filtering flags
+    ch->d3d_anisotropic_minify_enable = (param & NV04_TEXTURED_TRIANGLE_FILTER_ANISOTROPIC_MINIFY_ENABLE) != 0;
+    ch->d3d_anisotropic_magnify_enable = (param & NV04_TEXTURED_TRIANGLE_FILTER_ANISOTROPIC_MAGNIFY_ENABLE) != 0;
+    
+    BX_DEBUG(("D3D textured triangle filter: 0x%08x (kernel_x=%d, kernel_y=%d, mipmap_dither=%d, lodbias=%d, minify=%d, magnify=%d, aniso_min=%d, aniso_mag=%d)", 
+      param, ch->d3d_kernel_size_x, ch->d3d_kernel_size_y, ch->d3d_mipmap_dither_enable, ch->d3d_mipmap_lodbias, 
+      ch->d3d_minify_filter, ch->d3d_magnify_filter, ch->d3d_anisotropic_minify_enable, ch->d3d_anisotropic_magnify_enable));
+  } else if (method == NV04_TEXTURED_TRIANGLE_BLEND) {
+    // NV04_TEXTURED_TRIANGLE_BLEND
+    ch->d3d_blend = param;
+    
+    // Extract texture mapping mode
+    ch->d3d_texture_map = (param & NV04_TEXTURED_TRIANGLE_BLEND_TEXTURE_MAP__MASK) >> NV04_TEXTURED_TRIANGLE_BLEND_TEXTURE_MAP__SHIFT;
+    
+    // Extract mask bit mode
+    ch->d3d_mask_bit = (param & NV04_TEXTURED_TRIANGLE_BLEND_MASK_BIT__MASK) >> NV04_TEXTURED_TRIANGLE_BLEND_MASK_BIT__SHIFT;
+    
+    // Extract shading mode
+    ch->d3d_shade_mode = (param & NV04_TEXTURED_TRIANGLE_BLEND_SHADE_MODE__MASK) >> NV04_TEXTURED_TRIANGLE_BLEND_SHADE_MODE__SHIFT;
+    
+    // Extract feature flags
+    ch->d3d_texture_perspective_enable = (param & NV04_TEXTURED_TRIANGLE_BLEND_TEXTURE_PERSPECTIVE_ENABLE) != 0;
+    ch->d3d_specular_enable = (param & NV04_TEXTURED_TRIANGLE_BLEND_SPECULAR_ENABLE) != 0;
+    ch->d3d_fog_enable = (param & NV04_TEXTURED_TRIANGLE_BLEND_FOG_ENABLE) != 0;
+    ch->d3d_blend_enable = (param & NV04_TEXTURED_TRIANGLE_BLEND_BLEND_ENABLE) != 0;
+    
+    // Extract blend factors
+    ch->d3d_blend_src = (param & NV04_TEXTURED_TRIANGLE_BLEND_SRC__MASK) >> NV04_TEXTURED_TRIANGLE_BLEND_SRC__SHIFT;
+    ch->d3d_blend_dst = (param & NV04_TEXTURED_TRIANGLE_BLEND_DST__MASK) >> NV04_TEXTURED_TRIANGLE_BLEND_DST__SHIFT;
+    
+    BX_DEBUG(("D3D textured triangle blend: 0x%08x (texture_map=%d, mask_bit=%d, shade_mode=%d, perspective=%d, specular=%d, fog=%d, blend=%d, src=%d, dst=%d)", 
+      param, ch->d3d_texture_map, ch->d3d_mask_bit, ch->d3d_shade_mode, ch->d3d_texture_perspective_enable, 
+      ch->d3d_specular_enable, ch->d3d_fog_enable, ch->d3d_blend_enable, ch->d3d_blend_src, ch->d3d_blend_dst));
+  } else if (method == NV04_TEXTURED_TRIANGLE_CONTROL) {
+    // NV04_TEXTURED_TRIANGLE_CONTROL
+    ch->d3d_control = param;
+    
+    // Extract alpha test parameters
+    ch->d3d_alpha_ref = (param & NV04_TEXTURED_TRIANGLE_CONTROL_ALPHA_REF__MASK) >> NV04_TEXTURED_TRIANGLE_CONTROL_ALPHA_REF__SHIFT;
+    ch->d3d_alpha_func = (param & NV04_TEXTURED_TRIANGLE_CONTROL_ALPHA_FUNC__MASK) >> NV04_TEXTURED_TRIANGLE_CONTROL_ALPHA_FUNC__SHIFT;
+    ch->d3d_alpha_enable = (param & NV04_TEXTURED_TRIANGLE_CONTROL_ALPHA_ENABLE) != 0;
+    
+    // Extract origin mode
+    ch->d3d_origin_center = (param & NV04_TEXTURED_TRIANGLE_CONTROL_ORIGIN__MASK) == NV04_TEXTURED_TRIANGLE_CONTROL_ORIGIN_CENTER;
+    
+    // Extract Z-buffer parameters
+    ch->d3d_z_enable = (param & NV04_TEXTURED_TRIANGLE_CONTROL_Z_ENABLE) != 0;
+    ch->d3d_z_func = (param & NV04_TEXTURED_TRIANGLE_CONTROL_Z_FUNC__MASK) >> NV04_TEXTURED_TRIANGLE_CONTROL_Z_FUNC__SHIFT;
+    ch->d3d_z_perspective_enable = (param & NV04_TEXTURED_TRIANGLE_CONTROL_Z_PERSPECTIVE_ENABLE) != 0;
+    ch->d3d_z_write = (param & NV04_TEXTURED_TRIANGLE_CONTROL_Z_WRITE) != 0;
+    ch->d3d_z_format = (param & NV04_TEXTURED_TRIANGLE_CONTROL_Z_FORMAT__MASK) >> NV04_TEXTURED_TRIANGLE_CONTROL_Z_FORMAT__SHIFT;
+    
+    // Extract culling parameters
+    ch->d3d_cull_mode = (param & NV04_TEXTURED_TRIANGLE_CONTROL_CULL_MODE__MASK) >> NV04_TEXTURED_TRIANGLE_CONTROL_CULL_MODE__SHIFT;
+    
+    // Extract other flags
+    ch->d3d_dither_enable = (param & NV04_TEXTURED_TRIANGLE_CONTROL_DITHER_ENABLE) != 0;
+    
+    BX_DEBUG(("D3D textured triangle control: 0x%08x (alpha_ref=%d, alpha_func=%d, alpha_enable=%d, origin_center=%d, z_enable=%d, z_func=%d, cull_mode=%d, dither=%d, z_write=%d, z_format=%d)", 
+      param, ch->d3d_alpha_ref, ch->d3d_alpha_func, ch->d3d_alpha_enable, ch->d3d_origin_center, 
+      ch->d3d_z_enable, ch->d3d_z_func, ch->d3d_cull_mode, ch->d3d_dither_enable, ch->d3d_z_write, ch->d3d_z_format));
+  } else if (method == NV04_TEXTURED_TRIANGLE_FOGCOLOR) {
+    // NV04_TEXTURED_TRIANGLE_FOGCOLOR
+    // Extract RGBA components according to NV04_3D XML masks
+    ch->d3d_fog_color = param;
+    ch->d3d_fog_color_b = (param & 0x000000ff) >> 0;   // FOGCOLOR_B__SHIFT = 0
+    ch->d3d_fog_color_g = (param & 0x0000ff00) >> 8;   // FOGCOLOR_G__SHIFT = 8
+    ch->d3d_fog_color_r = (param & 0x00ff0000) >> 16;  // FOGCOLOR_R__SHIFT = 16
+    ch->d3d_fog_color_a = (param & 0xff000000) >> 24;  // FOGCOLOR_A__SHIFT = 24
+    BX_DEBUG(("D3D textured triangle fog color: 0x%08x (R=%d, G=%d, B=%d, A=%d)", 
+      param, ch->d3d_fog_color_r, ch->d3d_fog_color_g, ch->d3d_fog_color_b, ch->d3d_fog_color_a));
+  } else {
+    BX_DEBUG(("execute_d3d: unknown method 0x%03x, param 0x%08x", method, param));
+  }
 }
 
 bool bx_nvriva_c::execute_command(Bit32u chid, Bit32u subc, Bit32u method, Bit32u param)
@@ -3285,7 +4418,7 @@ bool bx_nvriva_c::execute_command(Bit32u chid, Bit32u subc, Bit32u method, Bit32
   bool software_method = false;
   BX_DEBUG(("execute_command: chid 0x%02x, subc 0x%02x, method 0x%03x, param 0x%08x",
     chid, subc, method, param));
-  gf_channel* ch = &BX_NVRIVA_THIS chs[chid];
+  nv04_channel* ch = &BX_NVRIVA_THIS chs[chid];
   if (method == 0x000) {
     if (ch->schs[subc].engine == 0x01) {
       Bit32u word1 = ramin_read32(ch->schs[subc].object + 0x4);
@@ -3295,27 +4428,14 @@ bool bx_nvriva_c::execute_command(Bit32u chid, Bit32u subc, Bit32u method, Bit32
       if (cls8 == 0x4a || cls8 == 0x4b) {
         word1 = (word1 & 0xFCFFFFFF) | (ch->gdi_mono_fmt << 24);
       } else if (cls8 == 0x62) {
-        if (BX_NVRIVA_THIS card_type < 0x40) {
-          ramin_write32(ch->schs[subc].object + 0x8,
-            (ch->s2d_img_src >> 4) |
-            (ch->s2d_img_dst >> 4 << 16));
-        } else {
-          ramin_write32(ch->schs[subc].object + 0x8, ch->s2d_img_src >> 4);
-          ramin_write32(ch->schs[subc].object + 0xC, ch->s2d_img_dst >> 4);
-        }
+        ramin_write32(ch->schs[subc].object + 0x8, ch->s2d_img_src >> 4);
+        ramin_write32(ch->schs[subc].object + 0xC, ch->s2d_img_dst >> 4);
       } else if (cls8 == 0x60 || cls8 == 0x64) {
         ramin_write32(ch->schs[subc].object + 0x8, ch->iifc_palette >> 4);
-        if (BX_NVRIVA_THIS card_type < 0x40)
-          word0 = (word0 & 0xFFFC7FFF) | (ch->iifc_operation << 15);
-        else
-          word0 = (word0 & 0xFFC7FFFF) | (ch->iifc_operation << 19);
+        word0 = (word0 & 0xFFC7FFFF) | (ch->iifc_operation << 19);
         ramin_write32(ch->schs[subc].object, word0);
-        if (BX_NVRIVA_THIS card_type < 0x40) {
-          word1 = (word1 & 0xFFFF00FF) | ((ch->iifc_color_fmt + 9) << 8);
-        } else {
-          // should be stored somewhere else
-          ramin_write32(ch->schs[subc].object + 0x10, ch->iifc_color_fmt);
-        }
+        word1 = (word1 & 0xFFFF00FF) | ((ch->iifc_color_fmt + 9) << 8);
+        ramin_write32(ch->schs[subc].object + 0x10, ch->iifc_color_fmt);
       }
       ramin_write32(ch->schs[subc].object + 0x4, word1);
     }
@@ -3324,10 +4444,7 @@ bool bx_nvriva_c::execute_command(Bit32u chid, Bit32u subc, Bit32u method, Bit32
       &ch->schs[subc].engine);
     if (ch->schs[subc].engine == 0x01) {
       Bit32u word1 = ramin_read32(ch->schs[subc].object + 0x4);
-      if (BX_NVRIVA_THIS card_type < 0x40)
-        ch->schs[subc].notifier = word1 >> 16 << 4;
-      else
-        ch->schs[subc].notifier = (word1 & 0xFFFFF) << 4;
+      ch->schs[subc].notifier = (word1 & 0xFFFFF) << 4;
       Bit32u word0 = ramin_read32(ch->schs[subc].object);
       Bit8u cls8 = word0;
       if (cls8 == 0x48) {
@@ -3344,21 +4461,12 @@ bool bx_nvriva_c::execute_command(Bit32u chid, Bit32u subc, Bit32u method, Bit32
           ch->s2d_ofs_dst = BX_NVRIVA_THIS graph_offset0;
         }
       } else if (cls8 == 0x4a || cls8 == 0x4b) {
-        if (BX_NVRIVA_THIS card_type < 0x40)
-          ch->gdi_mono_fmt = word1 & 3;
-        else
-          ch->gdi_mono_fmt = (word1 >> 24) & 3;
+        ch->gdi_mono_fmt = (word1 >> 24) & 3;
       } else if (cls8 == 0x42) {
-        if (BX_NVRIVA_THIS card_type < 0x40) {
-          Bit32u srcdst = ramin_read32(ch->schs[subc].object + 0x8);
-          ch->s2d_img_src = (srcdst & 0xFFFF) << 4;
-          ch->s2d_img_dst = srcdst >> 16 << 4;
-        } else {
-          ch->s2d_img_src =
-            ramin_read32(ch->schs[subc].object + 0x8) << 4;
-          ch->s2d_img_dst =
-            ramin_read32(ch->schs[subc].object + 0xC) << 4;
-        }
+        ch->s2d_img_src =
+          ramin_read32(ch->schs[subc].object + 0x8) << 4;
+        ch->s2d_img_dst =
+          ramin_read32(ch->schs[subc].object + 0xC) << 4;
       } else if (cls8 == 0x60 || cls8 == 0x64) {
         ch->iifc_palette =
           ramin_read32(ch->schs[subc].object + 0x8) << 4;
@@ -3454,14 +4562,8 @@ bool bx_nvriva_c::execute_command(Bit32u chid, Bit32u subc, Bit32u method, Bit32
           BX_NVRIVA_THIS graph_nsource |= 0x00000001;
           BX_NVRIVA_THIS graph_notify = 0x00110000;
           Bit32u notifier = ch->schs[subc].notifier >> 4;
-          if (BX_NVRIVA_THIS card_type < 0x40)
-            BX_NVRIVA_THIS graph_ctx_switch2 = notifier << 16;
-          else
-            BX_NVRIVA_THIS graph_ctx_switch1 = notifier;
-          BX_NVRIVA_THIS graph_ctx_switch4 =
-            ch->schs[subc].object >> 4;
-          if (BX_NVRIVA_THIS card_type >= 0x40)
-            BX_NVRIVA_THIS graph_ctxctl_cur = BX_NVRIVA_THIS fifo_grctx_instance;
+          BX_NVRIVA_THIS graph_ctx_switch1 = notifier;
+          BX_NVRIVA_THIS graph_ctx_switch4 = ch->schs[subc].object >> 4;
           BX_NVRIVA_THIS graph_trapped_addr = (method << 2) | (subc << 16) | (chid << 20);
           BX_NVRIVA_THIS graph_trapped_data = param;
           BX_DEBUG(("execute_command: notify interrupt triggered"));
@@ -3503,25 +4605,21 @@ void bx_nvriva_c::fifo_process(Bit32u chid)
       return;
   }
   if (oldchid != chid) {
-    Bit32u sro = BX_NVRIVA_THIS card_type < 0x40 ? 0x2C : 0x30;
+    Bit32u sro = 0x30;
     ramfc_write32(oldchid, 0x0, BX_NVRIVA_THIS fifo_cache1_dma_put);
     ramfc_write32(oldchid, 0x4, BX_NVRIVA_THIS fifo_cache1_dma_get);
     ramfc_write32(oldchid, 0x8, BX_NVRIVA_THIS fifo_cache1_ref_cnt);
     ramfc_write32(oldchid, 0xC, BX_NVRIVA_THIS fifo_cache1_dma_instance);
     ramfc_write32(oldchid, sro, BX_NVRIVA_THIS fifo_cache1_semaphore);
-    if (BX_NVRIVA_THIS card_type >= 0x40)
-      ramfc_write32(oldchid, 0x38, BX_NVRIVA_THIS fifo_grctx_instance);
     BX_NVRIVA_THIS fifo_cache1_dma_put = ramfc_read32(chid, 0x0);
     BX_NVRIVA_THIS fifo_cache1_dma_get = ramfc_read32(chid, 0x4);
     BX_NVRIVA_THIS fifo_cache1_ref_cnt = ramfc_read32(chid, 0x8);
     BX_NVRIVA_THIS fifo_cache1_dma_instance = ramfc_read32(chid, 0xC);
     BX_NVRIVA_THIS fifo_cache1_semaphore = ramfc_read32(chid, sro);
-    if (BX_NVRIVA_THIS card_type >= 0x40)
-      BX_NVRIVA_THIS fifo_grctx_instance = ramfc_read32(chid, 0x38);
     BX_NVRIVA_THIS fifo_cache1_push1 = (BX_NVRIVA_THIS fifo_cache1_push1 & ~0x1F) | chid;
   }
   BX_NVRIVA_THIS fifo_cache1_dma_push |= 0x100;
-  gf_channel* ch = &BX_NVRIVA_THIS chs[chid];
+  nv04_channel* ch = &BX_NVRIVA_THIS chs[chid];
   while (BX_NVRIVA_THIS fifo_cache1_dma_get != BX_NVRIVA_THIS fifo_cache1_dma_put) {
     BX_DEBUG(("fifo: processing at 0x%08x", BX_NVRIVA_THIS fifo_cache1_dma_get));
     Bit32u word = dma_read32(
@@ -3609,7 +4707,7 @@ Bit32u bx_nvriva_c::register_read32(Bit32u address)
 
   if (address == 0x0) {
     if (BX_NVRIVA_THIS card_type == 0x04)
-      value = 0x20040001; // NV4 revision A5
+      value = 0x20044001;
     else
       value = BX_NVRIVA_THIS card_type << 20;
   } else if (address == 0x100) {
@@ -3671,8 +4769,6 @@ Bit32u bx_nvriva_c::register_read32(Bit32u address)
     value = BX_NVRIVA_THIS fifo_cache1_pull0;
   } else if (address == 0x3270) {
     value = BX_NVRIVA_THIS fifo_cache1_get;
-  } else if (address == 0x32e0) {
-    value = BX_NVRIVA_THIS fifo_grctx_instance;
   } else if (address == 0x9100) {
     value = BX_NVRIVA_THIS timer_intr;
   } else if (address == 0x9140) {
@@ -3691,21 +4787,7 @@ Bit32u bx_nvriva_c::register_read32(Bit32u address)
            (address >= 0xc2300 && address < 0xc2400))
     value = register_read8(address);
   else if (address == 0x100000) {
-    switch (address) {
-    case 0:
-      value = BX_NVRIVA_THIS s.memsize = 32 * 1024 * 1024;
-      break;
-    case 1:
-      value = BX_NVRIVA_THIS s.memsize = 4 * 1024 * 1024;
-      break;
-    case 2:
-      value = BX_NVRIVA_THIS s.memsize = 8 * 1024 * 1024;
-      break;
-    default:
-      value = BX_NVRIVA_THIS s.memsize = 16 * 1024 * 1024;
-      break;
-    }
-  }
+    value = BX_GEFORCE_THIS s.memsize;
   else if (address == 0x101000)
     value = BX_NVRIVA_THIS straps0_primary;
   else if (address >= 0x300000 && address < 0x310000) {
@@ -3723,8 +4805,7 @@ Bit32u bx_nvriva_c::register_read32(Bit32u address)
     value = BX_NVRIVA_THIS graph_intr;
   } else if (address == 0x400108) {
     value = BX_NVRIVA_THIS graph_nsource;
-  } else if ((address == 0x40013C && BX_NVRIVA_THIS card_type >= 0x40) ||
-             (address == 0x400140 && BX_NVRIVA_THIS card_type <  0x40)) {
+  } else if (address == 0x400140) {
     value = BX_NVRIVA_THIS graph_intr_en;
   } else if (address == 0x40014C) {
     value = BX_NVRIVA_THIS graph_ctx_switch1;
@@ -3905,8 +4986,6 @@ void bx_nvriva_c::register_write32(Bit32u address, Bit32u value)
       BX_NVRIVA_THIS fifo_cache1_pull0 &= ~0x00000100;
     }
     update_irq_level();
-  } else if (address == 0x32e0) {
-    BX_NVRIVA_THIS fifo_grctx_instance = value;
   } else if (address == 0x9100) {
     BX_NVRIVA_THIS timer_intr &= ~value;
   } else if (address == 0x9140) {
@@ -3939,8 +5018,7 @@ void bx_nvriva_c::register_write32(Bit32u address, Bit32u value)
     update_irq_level();
   } else if (address == 0x400108) {
     BX_NVRIVA_THIS graph_nsource = value;
-  } else if ((address == 0x40013C && BX_NVRIVA_THIS card_type >= 0x40) ||
-             (address == 0x400140 && BX_NVRIVA_THIS card_type < 0x40)) {
+  } else if (address == 0x400140) {
     BX_NVRIVA_THIS graph_intr_en = value;
     update_irq_level();
   } else if (address == 0x40014C) {
@@ -4054,7 +5132,7 @@ void bx_nvriva_c::svga_init_pcihandlers(void)
 {
   BX_NVRIVA_THIS devfunc = 0x00;
   DEV_register_pci_handlers2(BX_NVRIVA_THIS_PTR,
-      &BX_NVRIVA_THIS devfunc, BX_PLUGIN_NVRIVA, "nVIDIA RIVA AGP", true);
+      &BX_NVRIVA_THIS devfunc, BX_PLUGIN_NVRIVA, "NVidia RIVA AGP", true);
   Bit16u devid = 0x0000;
   Bit8u revid = 0x00;
   if (BX_NVRIVA_THIS card_type == 0x04) {
