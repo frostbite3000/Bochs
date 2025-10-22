@@ -32,7 +32,7 @@
 #include "bitblt.h"
 #include "ddc.h"
 #include "pxextract.h"
-#include "voodoo_rush.h"
+#include "voodoorush.h"
 #include "virt_timer.h"
 
 #include "bx_debug/debug.h"
