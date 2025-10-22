@@ -338,9 +338,6 @@ struct nv04_channel
   Bit32u d3d_surface_color_offset;
   Bit32u d3d_surface_zeta_offset;
   Bit32u d3d_alpha_test_enable;
-  Bit32u d3d_alpha_func;
-  Bit32u d3d_alpha_ref;
-  Bit32u d3d_blend_enable;
   Bit16u d3d_blend_sfactor_rgb;
   Bit16u d3d_blend_sfactor_alpha;
   Bit16u d3d_blend_dfactor_rgb;
@@ -353,7 +350,6 @@ struct nv04_channel
   Bit32u d3d_depth_write_enable;
   Bit32u d3d_lighting_enable;
   Bit32u d3d_depth_func;
-  Bit32u d3d_shade_mode;
   float d3d_clip_min;
   float d3d_clip_max;
   Bit32u d3d_cull_face;
@@ -463,7 +459,6 @@ struct nv04_channel
   
   // NV04_TEXTURED_TRIANGLE_OFFSET support
   Bit32u d3d_offset;
-  Bit32u d3d_texture_offset;
   
   // NV04_TEXTURED_TRIANGLE_COLORKEY support
   Bit32u d3d_colorkey;

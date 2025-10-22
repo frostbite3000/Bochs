@@ -350,7 +350,9 @@ void bx_nvriva_c::svga_init_members()
     
     // Initialize offset to default values
     BX_NVRIVA_THIS chs[i].d3d_offset = 0x00000000;
-    BX_NVRIVA_THIS chs[i].d3d_texture_offset = 0x00000000;
+    for (int j = 0; j < 16; j++) {
+      BX_NVRIVA_THIS chs[i].d3d_texture_offset[j] = 0x00000000;
+    }
     
     // Initialize colorkey to default values
     BX_NVRIVA_THIS chs[i].d3d_colorkey = 0x00000000;
@@ -3565,7 +3567,7 @@ Bit32u bx_nvriva_c::d3d_sample_texture_nearest(nv04_channel* ch, Bit32u tex_obj,
   
   // Sample texture at integer coordinates with offset
   Bit32u tex_offset = y * tex_width + x;
-  return dma_read32(tex_obj + ch->d3d_texture_offset, tex_offset * 4);
+  return dma_read32(tex_obj + ch->d3d_texture_offset[0], tex_offset * 4);
 }
 
 Bit32u bx_nvriva_c::d3d_sample_texture_linear(nv04_channel* ch, Bit32u tex_obj, float u, float v, float lod)
@@ -3586,10 +3588,10 @@ Bit32u bx_nvriva_c::d3d_sample_texture_linear(nv04_channel* ch, Bit32u tex_obj, 
   float fy = y - (int)y;
   
   // Sample four neighboring texels with offset
-  Bit32u c00 = dma_read32(tex_obj + ch->d3d_texture_offset, (y0 * tex_width + x0) * 4);
-  Bit32u c01 = dma_read32(tex_obj + ch->d3d_texture_offset, (y0 * tex_width + x1) * 4);
-  Bit32u c10 = dma_read32(tex_obj + ch->d3d_texture_offset, (y1 * tex_width + x0) * 4);
-  Bit32u c11 = dma_read32(tex_obj + ch->d3d_texture_offset, (y1 * tex_width + x1) * 4);
+  Bit32u c00 = dma_read32(tex_obj + ch->d3d_texture_offset[0], (y0 * tex_width + x0) * 4);
+  Bit32u c01 = dma_read32(tex_obj + ch->d3d_texture_offset[0], (y0 * tex_width + x1) * 4);
+  Bit32u c10 = dma_read32(tex_obj + ch->d3d_texture_offset[0], (y1 * tex_width + x0) * 4);
+  Bit32u c11 = dma_read32(tex_obj + ch->d3d_texture_offset[0], (y1 * tex_width + x1) * 4);
   
   // Extract color components
   Bit8u c00_r = (c00 >> 16) & 0xFF;
@@ -3647,17 +3649,17 @@ Bit32u bx_nvriva_c::d3d_sample_texture_mipmap(nv04_channel* ch, Bit32u tex_obj, 
   // Sample texture at mipmap level with offset
   if (ch->d3d_minify_filter == 0x3 || ch->d3d_minify_filter == 0x5) {
     // Nearest mipmap filtering
-    return d3d_sample_texture_nearest(ch, tex_obj + ch->d3d_texture_offset + mip_offset, u, v, lod);
+    return d3d_sample_texture_nearest(ch, tex_obj + ch->d3d_texture_offset[0] + mip_offset, u, v, lod);
   } else {
     // Linear mipmap filtering
-    return d3d_sample_texture_linear(ch, tex_obj + ch->d3d_texture_offset + mip_offset, u, v, lod);
+    return d3d_sample_texture_linear(ch, tex_obj + ch->d3d_texture_offset[0] + mip_offset, u, v, lod);
   }
 }
 
 Bit32u bx_nvriva_c::d3d_get_texture_offset(nv04_channel* ch)
 {
-  // Get the current texture offset
-  return ch->d3d_texture_offset;
+  // Get the current texture offset for texture unit 0
+  return ch->d3d_texture_offset[0];
 }
 
 bool bx_nvriva_c::d3d_is_colorkey(nv04_channel* ch, Bit32u color)
@@ -4311,7 +4313,10 @@ void bx_nvriva_c::execute_d3d(nv04_channel* ch, Bit32u cls, Bit32u method, Bit32
   } else if (method == NV04_TEXTURED_TRIANGLE_OFFSET) {
     // NV04_TEXTURED_TRIANGLE_OFFSET
     ch->d3d_offset = param;
-    ch->d3d_texture_offset = param;
+    // Set texture offset for all texture units
+    for (int i = 0; i < 16; i++) {
+      ch->d3d_texture_offset[i] = param;
+    }
     BX_DEBUG(("D3D textured triangle offset: 0x%08x", param));
   } else if (method == NV04_TEXTURED_TRIANGLE_FORMAT) {
     // NV04_TEXTURED_TRIANGLE_FORMAT
@@ -4787,7 +4792,7 @@ Bit32u bx_nvriva_c::register_read32(Bit32u address)
            (address >= 0xc2300 && address < 0xc2400))
     value = register_read8(address);
   else if (address == 0x100000) {
-    value = BX_GEFORCE_THIS s.memsize;
+    value = BX_NVRIVA_THIS s.memsize;
   else if (address == 0x101000)
     value = BX_NVRIVA_THIS straps0_primary;
   else if (address >= 0x300000 && address < 0x310000) {
