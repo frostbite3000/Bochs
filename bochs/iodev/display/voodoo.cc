@@ -87,6 +87,23 @@ bx_voodoo_vga_c* theVoodooVga = NULL;
 voodoo_state *v;
 #include "voodoo_func.h"
 
+// Global variables defined in voodoo_func.h
+Bit32u voodoo_last_msg = 255;
+Bit8u voodoo_log[1 << LOG_LOOKUP_BITS];
+
+// Thread and synchronization variables
+BX_THREAD_VAR(fifo_thread_var);
+BX_MUTEX(cmdfifo_mutex);
+BX_MUTEX(render_mutex);
+BX_MUTEX(fifo_mutex);
+bx_thread_sem_t fifo_wakeup;
+bx_thread_sem_t fifo_not_full;
+bx_thread_sem_t vertical_sem;
+
+// Fast dither lookup tables
+Bit8u dither4_lookup[256*16*2];
+Bit8u dither2_lookup[256*16*2];
+
 // builtin configuration handling functions
 
 void voodoo_init_options(void)

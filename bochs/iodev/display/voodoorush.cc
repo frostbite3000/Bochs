@@ -128,7 +128,7 @@ static bx_voodoo_rush_c *theSvga = NULL;
 #include "voodoo_types.h"
 #include "voodoo_data.h"
 #include "voodoo_main.h"
-static voodoo_state *v;
+extern voodoo_state *v;
 #include "voodoo_func.h"
 
 PLUGIN_ENTRY_FOR_MODULE(voodoorush)
