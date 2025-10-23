@@ -1,0 +1,63 @@
+cd iodev && \
+make  libiodev.a
+cd iodev/display && \
+make  libdisplay.a
+cd iodev/hdimage && \
+make  libhdimage.a
+cd cpu && \
+make  libcpu.a
+make[1]: Entering directory '/workspace/bochs/iodev/display'
+make[1]: 'libdisplay.a' is up to date.
+make[1]: Leaving directory '/workspace/bochs/iodev/display'
+echo done
+make[1]: Entering directory '/workspace/bochs/iodev'
+make[1]: 'libiodev.a' is up to date.
+make[1]: Leaving directory '/workspace/bochs/iodev'
+echo done
+make[1]: Entering directory '/workspace/bochs/iodev/hdimage'
+make[1]: 'libhdimage.a' is up to date.
+make[1]: Leaving directory '/workspace/bochs/iodev/hdimage'
+echo done
+done
+cd cpu/cpudb && \
+make  libcpudb.a
+done
+done
+cd memory && \
+make  libmemory.a
+cd gui && \
+make  libgui.a
+make[1]: Entering directory '/workspace/bochs/cpu'
+make[1]: 'libcpu.a' is up to date.
+make[1]: Leaving directory '/workspace/bochs/cpu'
+echo done
+make[1]: Entering directory '/workspace/bochs/memory'
+make[1]: 'libmemory.a' is up to date.
+make[1]: Leaving directory '/workspace/bochs/memory'
+echo done
+done
+cd cpu/fpu && \
+make  libfpu.a
+make[1]: Entering directory '/workspace/bochs/cpu/cpudb'
+make[1]: 'libcpudb.a' is up to date.
+make[1]: Leaving directory '/workspace/bochs/cpu/cpudb'
+echo done
+done
+cd cpu/softfloat3e && \
+make  CXX="g++" libsoftfloat.a
+done
+make[1]: Entering directory '/workspace/bochs/gui'
+make[1]: 'libgui.a' is up to date.
+make[1]: Leaving directory '/workspace/bochs/gui'
+echo done
+done
+make[1]: Entering directory '/workspace/bochs/cpu/fpu'
+make[1]: 'libfpu.a' is up to date.
+make[1]: Leaving directory '/workspace/bochs/cpu/fpu'
+echo done
+done
+make[1]: Entering directory '/workspace/bochs/cpu/softfloat3e'
+make[1]: 'libsoftfloat.a' is up to date.
+make[1]: Leaving directory '/workspace/bochs/cpu/softfloat3e'
+echo done
+done

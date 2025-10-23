@@ -38,7 +38,7 @@
 
 ***************************************************************************/
 
-Bit32u voodoo_last_msg = 255;
+extern Bit32u voodoo_last_msg;
 
 
 #define poly_wait(x,y)
@@ -61,23 +61,23 @@ Bit32u voodoo_last_msg = 255;
 #define MODIFY_PIXEL(VV)
 
 /* fifo thread variable */
-BX_THREAD_VAR(fifo_thread_var);
+extern BX_THREAD_VAR(fifo_thread_var);
 /* CMDFIFO thread mutex (Voodoo2) */
-BX_MUTEX(cmdfifo_mutex);
+extern BX_MUTEX(cmdfifo_mutex);
 /* render mutex (Banshee) */
-BX_MUTEX(render_mutex);
+extern BX_MUTEX(render_mutex);
 /* FIFO event stuff */
-BX_MUTEX(fifo_mutex);
-bx_thread_sem_t fifo_wakeup;
-bx_thread_sem_t fifo_not_full;
-static bx_thread_sem_t vertical_sem;
+extern BX_MUTEX(fifo_mutex);
+extern bx_thread_sem_t fifo_wakeup;
+extern bx_thread_sem_t fifo_not_full;
+extern bx_thread_sem_t vertical_sem;
 
 /* fast dither lookup */
-static Bit8u dither4_lookup[256*16*2];
-static Bit8u dither2_lookup[256*16*2];
+extern Bit8u dither4_lookup[256*16*2];
+extern Bit8u dither2_lookup[256*16*2];
 
 /* fast log2 lookup */
-Bit8u voodoo_log[1 << LOG_LOOKUP_BITS];
+extern Bit8u voodoo_log[1 << LOG_LOOKUP_BITS];
 
 
 void raster_function(int tmus, void *destbase, Bit32s y, const poly_extent *extent, const void *extradata, int threadid) {
