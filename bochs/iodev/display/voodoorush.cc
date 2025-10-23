@@ -34,6 +34,7 @@
 #include "pxextract.h"
 #include "voodoorush.h"
 #include "virt_timer.h"
+#include "bxthread.h"
 
 #include "bx_debug/debug.h"
 
@@ -135,7 +136,7 @@ PLUGIN_ENTRY_FOR_MODULE(voodoorush)
   if (mode == PLUGIN_INIT) {
     theSvga = new bx_voodoo_rush_c();
     bx_devices.pluginVgaDevice = theSvga;
-    BX_REGISTER_DEVICE_DEVMODEL(plugin, type, theSvga, BX_PLUGIN_VOODOO_RUSH);
+    BX_REGISTER_DEVICE_DEVMODEL(plugin, type, theSvga, BX_PLUGIN_VOODOORUSH);
   } else if (mode == PLUGIN_FINI) {
     delete theSvga;
   } else if (mode == PLUGIN_PROBE) {
@@ -190,7 +191,7 @@ void bx_voodoo_rush_c::svga_init_members()
   BX_VOODOORUSH_THIS crtc.index = VOODOORUSH_CRTC_MAX + 1;
   for (i = 0; i <= VOODOORUSH_CRTC_MAX; i++)
     BX_VOODOORUSH_THIS crtc.reg[i] = 0x00;
-  BX_VOODOORUSH_THIS s.CRTC.max_reg = VOODOORUSH_CRTC_MAX;
+  BX_VOODOORUSH_THIS bx_vgacore_c::s.CRTC.max_reg = VOODOORUSH_CRTC_MAX;
   BX_VOODOORUSH_THIS hidden_dac.lockindex = 0;
   BX_VOODOORUSH_THIS hidden_dac.data = 0x00;
 
@@ -209,22 +210,22 @@ void bx_voodoo_rush_c::svga_init_members()
   BX_VOODOORUSH_THIS bank_limit[0] = 0;
   BX_VOODOORUSH_THIS bank_limit[1] = 0;
 
-  svga_reset_bitblt();
+  // svga_reset_bitblt(); // TODO: implement this function
 
   BX_VOODOORUSH_THIS hw_cursor.x = 0;
   BX_VOODOORUSH_THIS hw_cursor.y = 0;
   BX_VOODOORUSH_THIS hw_cursor.size = 0;
 
   // memory allocation.
-  if (BX_VOODOORUSH_THIS s.memory == NULL)
-    BX_VOODOORUSH_THIS s.memory = new Bit8u[VOODOORUSH_VIDEO_MEMORY_BYTES];
+  if (BX_VOODOORUSH_THIS bx_vgacore_c::s.memory == NULL)
+    BX_VOODOORUSH_THIS bx_vgacore_c::s.memory = new Bit8u[VOODOORUSH_VIDEO_MEMORY_BYTES];
 
   BX_VOODOORUSH_THIS hidden_dac.lockindex = 5;
   BX_VOODOORUSH_THIS hidden_dac.data = 0;
 
-  memset(BX_VOODOORUSH_THIS s.memory, 0xff, VOODOORUSH_VIDEO_MEMORY_BYTES);
-  BX_VOODOORUSH_THIS disp_ptr = BX_VOODOORUSH_THIS s.memory;
-  BX_VOODOORUSH_THIS memsize_mask = BX_VOODOORUSH_THIS s.memsize - 1;
+  memset(BX_VOODOORUSH_THIS bx_vgacore_c::s.memory, 0xff, VOODOORUSH_VIDEO_MEMORY_BYTES);
+  BX_VOODOORUSH_THIS disp_ptr = BX_VOODOORUSH_THIS bx_vgacore_c::s.memory;
+  BX_VOODOORUSH_THIS memsize_mask = BX_VOODOORUSH_THIS bx_vgacore_c::s.memsize - 1;
 
   // VCLK defaults after reset
   BX_VOODOORUSH_THIS sequencer.reg[0x0b] = 0x66;
@@ -235,10 +236,10 @@ void bx_voodoo_rush_c::svga_init_members()
   BX_VOODOORUSH_THIS sequencer.reg[0x1c] = 0x2f;
   BX_VOODOORUSH_THIS sequencer.reg[0x1d] = 0x30;
   BX_VOODOORUSH_THIS sequencer.reg[0x1e] = 0x33;
-  BX_VOODOORUSH_THIS s.vclk[0] = 25180000;
-  BX_VOODOORUSH_THIS s.vclk[1] = 28325000;
-  BX_VOODOORUSH_THIS s.vclk[2] = 41165000;
-  BX_VOODOORUSH_THIS s.vclk[3] = 36082000;
+  BX_VOODOORUSH_THIS bx_vgacore_c::s.vclk[0] = 25180000;
+  BX_VOODOORUSH_THIS bx_vgacore_c::s.vclk[1] = 28325000;
+  BX_VOODOORUSH_THIS bx_vgacore_c::s.vclk[2] = 41165000;
+  BX_VOODOORUSH_THIS bx_vgacore_c::s.vclk[3] = 36082000;
 }
 
 void bx_voodoo_rush_c::reset(unsigned type)
@@ -265,9 +266,9 @@ void bx_voodoo_rush_c::register_state(void)
   new bx_shadow_data_c(ctrl, "reg", BX_VOODOORUSH_THIS control.reg, VOODOORUSH_CONTROL_MAX + 1, 1);
   new bx_shadow_num_c(ctrl, "shadow_reg0", &BX_VOODOORUSH_THIS control.shadow_reg0, BASE_HEX);
   new bx_shadow_num_c(ctrl, "shadow_reg1", &BX_VOODOORUSH_THIS control.shadow_reg1, BASE_HEX);
-  BXRS_PARAM_BOOL(vdraw, clock_enabled, s.vdraw.clock_enabled);
-  BXRS_PARAM_BOOL(vdraw, output_on, s.vdraw.output_on);
-  BXRS_PARAM_BOOL(vdraw, override_on, s.vdraw.override_on);
+  BXRS_PARAM_BOOL(list, clock_enabled, s.vdraw.clock_enabled);
+  BXRS_PARAM_BOOL(list, output_on, s.vdraw.output_on);
+  BXRS_PARAM_BOOL(list, override_on, s.vdraw.override_on);
   register_pci_state(list);
 }
 
@@ -281,7 +282,7 @@ void bx_voodoo_rush_c::redraw_area(unsigned x0, unsigned y0, unsigned width,
                                    unsigned height)
 {
   unsigned xti, yti, xt0, xt1, yt0, yt1;
-  Bit8u iBpp;
+  Bit8u iBpp = BX_VOODOORUSH_THIS svga_dispbpp;
 
   if (iBpp == 0x00) {
     BX_VOODOORUSH_THIS bx_vgacore_c::redraw_area(x0,y0,width,height);
@@ -351,55 +352,14 @@ Bit8u bx_voodoo_rush_c::mem_read(bx_phy_address addr)
 bool bx_voodoo_rush_c::voodoo_rush_mem_write_handler(bx_phy_address addr, unsigned len,
                                          void *data, void *param)
 {
-  bx_voodoo_1_2_c *class_ptr = (bx_voodoo_1_2_c*)param;
-  if (len == 16) {
-    Bit64u *data64 = (Bit64u*)data;
-#ifdef BX_LITTLE_ENDIAN
-    class_ptr->mem_write(addr, 8, &data64[0]);
-    class_ptr->mem_write(addr + 8, 8, &data64[1]);
-#else
-    class_ptr->mem_write(addr, 8, &data64[1]);
-    class_ptr->mem_write(addr + 8, 8, &data64[0]);
-#endif
-  } else {
-    class_ptr->mem_write(addr, len, data);
-  }
+  // TODO: Implement proper voodoo memory write handling
   return 1;
 }
 
 void bx_voodoo_rush_c::mem_write(bx_phy_address addr, Bit8u value)
 {
-  Bit64u value = 0;
-
-#ifdef BX_LITTLE_ENDIAN
-  Bit8u *data_ptr = (Bit8u *) data;
-#else // BX_BIG_ENDIAN
-  Bit8u *data_ptr = (Bit8u *) data + (len - 1);
-#endif
-  for (unsigned i = 0; i < len; i++) {
-    value |= ((Bit64u)*data_ptr << (i * 8));
-#ifdef BX_LITTLE_ENDIAN
-    data_ptr++;
-#else // BX_BIG_ENDIAN
-    data_ptr--;
-#endif
-  }
-  if (len == 8) {
-    voodoo_w((addr >> 2) & 0x3FFFFF, (Bit32u)value, 0xffffffff);
-    voodoo_w(((addr >> 2) + 1) & 0x3FFFFF, (Bit32u)(value >> 32), 0xffffffff);
-  } else if (len == 4) {
-    voodoo_w((addr >> 2) & 0x3FFFFF, (Bit32u)value, 0xffffffff);
-  } else if (len == 2) {
-    if (addr & 3) {
-      voodoo_w((addr >> 2) & 0x3FFFFF, Bit32u(value << 16), 0xffff0000);
-    } else {
-      voodoo_w((addr >> 2) & 0x3FFFFF, (Bit32u)value, 0x0000ffff);
-    }
-  } else if (len == 1) {
-    voodoo_w((addr >> 2) & 0x3FFFFF, (Bit32u)(value << (8 * (addr & 3))), 0xffffffff);
-  } else {
-    BX_ERROR(("Voodoo Rush mem_write(): unknown len=%d", len));
-  }
+  // For single byte writes, just pass to VGA core
+  BX_VOODOORUSH_THIS bx_vgacore_c::mem_write(addr, value);
 }
 
 Bit32u bx_voodoo_rush_c::read_handler(void *this_ptr, Bit32u address, unsigned io_len)
@@ -417,13 +377,15 @@ Bit32u bx_voodoo_rush_c::read(Bit32u address, unsigned io_len)
   Bit8u reg = (offset >> 2);
   switch (reg) {
     case 0xD0:
-      bool scl = address & 0x08;
-      bool sda = address & 0x10;
-      if (address == 0xD0) {
-         ddc.write(scl, sda);
+      {
+        bool scl = address & 0x08;
+        bool sda = address & 0x10;
+        if (address == 0xD0) {
+           ddc.write(scl, sda);
+        }
+        result = ddc.read() & 0x60;
+        break;
       }
-      result = ddc.read() & 0x60;
-      break;
 
     default:
       break;
@@ -448,12 +410,14 @@ void bx_voodoo_rush_c::write(Bit32u address, Bit32u value, unsigned io_len)
 
   switch (reg) {
     case 0xD0:
-      bool scl = address & 0x08;
-      bool sda = address & 0x10;
-      if (address == 0xD0) {
-        ddc.write(scl, sda);
+      {
+        bool scl = address & 0x08;
+        bool sda = address & 0x10;
+        if (address == 0xD0) {
+          ddc.write(scl, sda);
+        }
+        break;
       }
-      break;
 
     default:
       break;
@@ -569,6 +533,9 @@ void bx_voodoo_rush_c::svga_modeupdate(void)
 
   iWidth = BX_VOODOORUSH_THIS crtc.reg[0] + ((BX_VOODOORUSH_THIS crtc.reg[0x1B] & 0x01) << 8) + 5;
 
+  // Default to 8bpp for now - TODO: determine from registers
+  iBpp = 8;
+
   switch (iBpp) {
     case 4:
       iDispBpp = 4;
@@ -592,7 +559,7 @@ void bx_voodoo_rush_c::svga_modeupdate(void)
   BX_VOODOORUSH_THIS get_crtc_params(&crtcp, &vclock);
   hfreq = vclock / (float)(crtcp.htotal * 8);
   vfreq = hfreq / (float)crtcp.vtotal;
-  if ((BX_VOODOORUSH_THIS s.y_doublescan) && (iHeight > iWidth)) {
+  if ((BX_VOODOORUSH_THIS bx_vgacore_c::s.y_doublescan) && (iHeight > iWidth)) {
     iWidth <<= 1;
     BX_VOODOORUSH_THIS svga_double_width = true;
   } else {
@@ -600,7 +567,7 @@ void bx_voodoo_rush_c::svga_modeupdate(void)
   }
   if ((iWidth != BX_VOODOORUSH_THIS svga_xres) || (iHeight != BX_VOODOORUSH_THIS svga_yres)
       || (iDispBpp != BX_VOODOORUSH_THIS svga_dispbpp)) {
-    if (!BX_VOODOORUSH_THIS s.ext_y_dblsize) {
+    if (!BX_VOODOORUSH_THIS bx_vgacore_c::s.ext_y_dblsize) {
       BX_INFO(("switched to %u x %u x %u @ %.1f Hz", iWidth, iHeight, iDispBpp,
                vfreq));
     } else {
@@ -612,12 +579,12 @@ void bx_voodoo_rush_c::svga_modeupdate(void)
   BX_VOODOORUSH_THIS svga_yres = iHeight;
   BX_VOODOORUSH_THIS svga_bpp = iBpp;
   BX_VOODOORUSH_THIS svga_dispbpp = iDispBpp;
-  BX_VOODOORUSH_THIS disp_ptr = BX_VOODOORUSH_THIS s.memory + iTopOffset;
+  BX_VOODOORUSH_THIS disp_ptr = BX_VOODOORUSH_THIS bx_vgacore_c::s.memory + iTopOffset;
   // compatibilty settings for VGA core
-  BX_VOODOORUSH_THIS s.last_xres = iWidth;
-  BX_VOODOORUSH_THIS s.last_yres = iHeight;
-  BX_VOODOORUSH_THIS s.last_bpp = iDispBpp;
-  BX_VOODOORUSH_THIS s.last_fh = 0;
+  BX_VOODOORUSH_THIS bx_vgacore_c::s.last_xres = iWidth;
+  BX_VOODOORUSH_THIS bx_vgacore_c::s.last_yres = iHeight;
+  BX_VOODOORUSH_THIS bx_vgacore_c::s.last_bpp = iDispBpp;
+  BX_VOODOORUSH_THIS bx_vgacore_c::s.last_fh = 0;
 }
 
 void bx_voodoo_rush_c::update(void)
@@ -625,14 +592,14 @@ void bx_voodoo_rush_c::update(void)
   unsigned width, height, pitch;
 
   /* skip screen update when the sequencer is in reset mode or video is disabled */
-  if (! BX_VOODOORUSH_THIS s.sequencer.reset1 ||
-      ! BX_VOODOORUSH_THIS s.sequencer.reset2 ||
-      ! BX_VOODOORUSH_THIS s.attribute_ctrl.video_enabled) {
+  if (! BX_VOODOORUSH_THIS bx_vgacore_c::s.sequencer.reset1 ||
+      ! BX_VOODOORUSH_THIS bx_vgacore_c::s.sequencer.reset2 ||
+      ! BX_VOODOORUSH_THIS bx_vgacore_c::s.attribute_ctrl.video_enabled) {
     return;
   }
 
   if (BX_VOODOORUSH_THIS svga_needs_update_mode) {
-    BX_VOODOORUSH_THIS s.ext_y_dblsize = (BX_VOODOORUSH_THIS crtc.reg[0x1a] & 0x01) > 0;
+    BX_VOODOORUSH_THIS bx_vgacore_c::s.ext_y_dblsize = (BX_VOODOORUSH_THIS crtc.reg[0x1a] & 0x01) > 0;
   }
   if (BX_VOODOORUSH_THIS svga_needs_update_mode) {
     svga_modeupdate();
@@ -644,19 +611,19 @@ void bx_voodoo_rush_c::update(void)
     pitch = BX_VOODOORUSH_THIS svga_pitch;
     if (BX_VOODOORUSH_THIS svga_needs_update_mode) {
       bx_gui->dimension_update(width, height, 0, 0, BX_VOODOORUSH_THIS svga_dispbpp);
-      BX_VOODOORUSH_THIS s.last_bpp = BX_VOODOORUSH_THIS svga_dispbpp;
+      BX_VOODOORUSH_THIS bx_vgacore_c::s.last_bpp = BX_VOODOORUSH_THIS svga_dispbpp;
       BX_VOODOORUSH_THIS svga_needs_update_mode = 0;
       BX_VOODOORUSH_THIS svga_needs_update_dispentire = 1;
     }
   } else {
     BX_VOODOORUSH_THIS determine_screen_dimensions(&height, &width);
-    pitch = BX_VOODOORUSH_THIS s.line_offset;
-    if ((width != BX_VOODOORUSH_THIS s.last_xres) || (height != BX_VOODOORUSH_THIS s.last_yres) ||
-        (BX_VOODOORUSH_THIS s.last_bpp > 8)) {
+    pitch = BX_VOODOORUSH_THIS bx_vgacore_c::s.line_offset;
+    if ((width != BX_VOODOORUSH_THIS bx_vgacore_c::s.last_xres) || (height != BX_VOODOORUSH_THIS bx_vgacore_c::s.last_yres) ||
+        (BX_VOODOORUSH_THIS bx_vgacore_c::s.last_bpp > 8)) {
       bx_gui->dimension_update(width, height);
-      BX_VOODOORUSH_THIS s.last_xres = width;
-      BX_VOODOORUSH_THIS s.last_yres = height;
-      BX_VOODOORUSH_THIS s.last_bpp = 8;
+      BX_VOODOORUSH_THIS bx_vgacore_c::s.last_xres = width;
+      BX_VOODOORUSH_THIS bx_vgacore_c::s.last_yres = height;
+      BX_VOODOORUSH_THIS bx_vgacore_c::s.last_bpp = 8;
     }
   }
 
@@ -695,13 +662,13 @@ void bx_voodoo_rush_c::update(void)
               }
               tile_ptr2 += ((info.bpp + 1) >> 3);
             }
-            if (!BX_VOODOORUSH_THIS s.y_doublescan || (yc & 1)) {
+            if (!BX_VOODOORUSH_THIS bx_vgacore_c::s.y_doublescan || (yc & 1)) {
               vid_ptr += pitch;
             }
           } else {
-            row_addr = BX_VOODOORUSH_THIS s.CRTC.start_addr + (yc * pitch);
+            row_addr = BX_VOODOORUSH_THIS bx_vgacore_c::s.CRTC.start_addr + (yc * pitch);
             for (xc = 0; xc < width; xc++) {
-              *(tile_ptr2++) = BX_VOODOORUSH_THIS get_vga_pixel(xc, yc, row_addr, 0xffff, 0, BX_VOODOORUSH_THIS s.memory);
+              *(tile_ptr2++) = BX_VOODOORUSH_THIS get_vga_pixel(xc, yc, row_addr, 0xffff, 0, BX_VOODOORUSH_THIS bx_vgacore_c::s.memory);
             }
           }
           tile_ptr += info.pitch;
@@ -716,12 +683,12 @@ void bx_voodoo_rush_c::update(void)
                 tile_ptr = bx_gui->graphics_tile_get(xc, yc, &w, &h);
                 for (r=0; r<h; r++) {
                   y = yc + r;
-                  if (BX_VOODOORUSH_THIS s.y_doublescan) y >>= 1;
-                  row_addr = BX_VOODOORUSH_THIS s.CRTC.start_addr + (y * pitch);
+                  if (BX_VOODOORUSH_THIS bx_vgacore_c::s.y_doublescan) y >>= 1;
+                  row_addr = BX_VOODOORUSH_THIS bx_vgacore_c::s.CRTC.start_addr + (y * pitch);
                   tile_ptr2 = tile_ptr;
                   for (c=0; c<w; c++) {
                     x = xc + c;
-                    *(tile_ptr2++) = BX_VOODOORUSH_THIS get_vga_pixel(x, y, row_addr, 0xffff, 0, BX_VOODOORUSH_THIS s.memory);
+                    *(tile_ptr2++) = BX_VOODOORUSH_THIS get_vga_pixel(x, y, row_addr, 0xffff, 0, BX_VOODOORUSH_THIS bx_vgacore_c::s.memory);
                   }
                   tile_ptr += info.pitch;
                 }
@@ -739,11 +706,11 @@ void bx_voodoo_rush_c::update(void)
             BX_VOODOORUSH_THIS svga_dispbpp));
           break;
         case 8:
-          hp = BX_VOODOORUSH_THIS s.attribute_ctrl.horiz_pel_panning & 0x07;
+          hp = BX_VOODOORUSH_THIS bx_vgacore_c::s.attribute_ctrl.horiz_pel_panning & 0x07;
           for (yc=0, yti = 0; yc<height; yc+=Y_TILESIZE, yti++) {
             for (xc=0, xti = 0; xc<width; xc+=X_TILESIZE, xti++) {
               if (GET_TILE_UPDATED (xti, yti)) {
-                if (!BX_VOODOORUSH_THIS s.y_doublescan) {
+                if (!BX_VOODOORUSH_THIS bx_vgacore_c::s.y_doublescan) {
                   vid_ptr = BX_VOODOORUSH_THIS disp_ptr + (yc * pitch + xc + hp);
                 } else {
                   if (!BX_VOODOORUSH_THIS svga_double_width) {
@@ -763,7 +730,7 @@ void bx_voodoo_rush_c::update(void)
                     }
                     *(tile_ptr2++) = colour;
                   }
-                  if (!BX_VOODOORUSH_THIS s.y_doublescan || (r & 1)) {
+                  if (!BX_VOODOORUSH_THIS bx_vgacore_c::s.y_doublescan || (r & 1)) {
                     vid_ptr += pitch;
                   }
                   tile_ptr += info.pitch;
@@ -786,15 +753,15 @@ void bx_voodoo_rush_c::update(void)
                 for (r=0; r<Y_TILESIZE; r++) {
                   tile_ptr2 = tile_ptr;
                   y = yc + r;
-                  if (BX_VOODOORUSH_THIS s.y_doublescan) y >>= 1;
-                  row_addr = BX_VOODOORUSH_THIS s.CRTC.start_addr + (y * pitch);
+                  if (BX_VOODOORUSH_THIS bx_vgacore_c::s.y_doublescan) y >>= 1;
+                  row_addr = BX_VOODOORUSH_THIS bx_vgacore_c::s.CRTC.start_addr + (y * pitch);
                   for (c=0; c<X_TILESIZE; c++) {
                     x = xc + c;
-                    colour = BX_VOODOORUSH_THIS get_vga_pixel(x, y, row_addr, 0xffff, 0, BX_VOODOORUSH_THIS s.memory);
+                    colour = BX_VOODOORUSH_THIS get_vga_pixel(x, y, row_addr, 0xffff, 0, BX_VOODOORUSH_THIS bx_vgacore_c::s.memory);
                     colour = MAKE_COLOUR(
-                      BX_VOODOORUSH_THIS s.pel.data[colour].red, 6, info.red_shift, info.red_mask,
-                      BX_VOODOORUSH_THIS s.pel.data[colour].green, 6, info.green_shift, info.green_mask,
-                      BX_VOODOORUSH_THIS s.pel.data[colour].blue, 6, info.blue_shift, info.blue_mask);
+                      BX_VOODOORUSH_THIS bx_vgacore_c::s.pel.data[colour].red, 6, info.red_shift, info.red_mask,
+                      BX_VOODOORUSH_THIS bx_vgacore_c::s.pel.data[colour].green, 6, info.green_shift, info.green_mask,
+                      BX_VOODOORUSH_THIS bx_vgacore_c::s.pel.data[colour].blue, 6, info.blue_shift, info.blue_mask);
                     if (info.is_little_endian) {
                       for (i=0; i<info.bpp; i+=8) {
                         *(tile_ptr2++) = colour >> i;
@@ -814,11 +781,11 @@ void bx_voodoo_rush_c::update(void)
           }
           break;
         case 8:
-          hp = BX_VOODOORUSH_THIS s.attribute_ctrl.horiz_pel_panning & 0x07;
+          hp = BX_VOODOORUSH_THIS bx_vgacore_c::s.attribute_ctrl.horiz_pel_panning & 0x07;
           for (yc=0, yti = 0; yc<height; yc+=Y_TILESIZE, yti++) {
             for (xc=0, xti = 0; xc<width; xc+=X_TILESIZE, xti++) {
               if (GET_TILE_UPDATED (xti, yti)) {
-                if (!BX_VOODOORUSH_THIS s.y_doublescan) {
+                if (!BX_VOODOORUSH_THIS bx_vgacore_c::s.y_doublescan) {
                   vid_ptr = BX_VOODOORUSH_THIS disp_ptr + (yc * pitch + xc + hp);
                 } else {
                   if (!BX_VOODOORUSH_THIS svga_double_width) {
@@ -837,9 +804,9 @@ void bx_voodoo_rush_c::update(void)
                       vid_ptr2++;
                     }
                     colour = MAKE_COLOUR(
-                      BX_VOODOORUSH_THIS s.pel.data[colour].red, 6, info.red_shift, info.red_mask,
-                      BX_VOODOORUSH_THIS s.pel.data[colour].green, 6, info.green_shift, info.green_mask,
-                      BX_VOODOORUSH_THIS s.pel.data[colour].blue, 6, info.blue_shift, info.blue_mask);
+                      BX_VOODOORUSH_THIS bx_vgacore_c::s.pel.data[colour].red, 6, info.red_shift, info.red_mask,
+                      BX_VOODOORUSH_THIS bx_vgacore_c::s.pel.data[colour].green, 6, info.green_shift, info.green_mask,
+                      BX_VOODOORUSH_THIS bx_vgacore_c::s.pel.data[colour].blue, 6, info.blue_shift, info.blue_mask);
                     if (info.is_little_endian) {
                       for (i=0; i<info.bpp; i+=8) {
                         *(tile_ptr2++) = colour >> i;
@@ -850,7 +817,7 @@ void bx_voodoo_rush_c::update(void)
                       }
                     }
                   }
-                  if (!BX_VOODOORUSH_THIS s.y_doublescan || (r & 1)) {
+                  if (!BX_VOODOORUSH_THIS bx_vgacore_c::s.y_doublescan || (r & 1)) {
                     vid_ptr += pitch;
                   }
                   tile_ptr += info.pitch;
@@ -862,11 +829,11 @@ void bx_voodoo_rush_c::update(void)
           }
           break;
         case 15:
-          hp = BX_VOODOORUSH_THIS s.attribute_ctrl.horiz_pel_panning & 0x01;
+          hp = BX_VOODOORUSH_THIS bx_vgacore_c::s.attribute_ctrl.horiz_pel_panning & 0x01;
           for (yc=0, yti = 0; yc<height; yc+=Y_TILESIZE, yti++) {
             for (xc=0, xti = 0; xc<width; xc+=X_TILESIZE, xti++) {
               if (GET_TILE_UPDATED (xti, yti)) {
-                if (!BX_VOODOORUSH_THIS s.y_doublescan) {
+                if (!BX_VOODOORUSH_THIS bx_vgacore_c::s.y_doublescan) {
                   vid_ptr = BX_VOODOORUSH_THIS disp_ptr + (yc * pitch + ((xc + hp) << 1));
                 } else {
                   if (!BX_VOODOORUSH_THIS svga_double_width) {
@@ -904,7 +871,7 @@ void bx_voodoo_rush_c::update(void)
                       }
                     }
                   }
-                  if (!BX_VOODOORUSH_THIS s.y_doublescan || (r & 1)) {
+                  if (!BX_VOODOORUSH_THIS bx_vgacore_c::s.y_doublescan || (r & 1)) {
                     vid_ptr  += pitch;
                   }
                   tile_ptr += info.pitch;
@@ -916,11 +883,11 @@ void bx_voodoo_rush_c::update(void)
           }
           break;
         case 16:
-          hp = BX_VOODOORUSH_THIS s.attribute_ctrl.horiz_pel_panning & 0x01;
+          hp = BX_VOODOORUSH_THIS bx_vgacore_c::s.attribute_ctrl.horiz_pel_panning & 0x01;
           for (yc=0, yti = 0; yc<height; yc+=Y_TILESIZE, yti++) {
             for (xc=0, xti = 0; xc<width; xc+=X_TILESIZE, xti++) {
               if (GET_TILE_UPDATED (xti, yti)) {
-                if (!BX_VOODOORUSH_THIS s.y_doublescan) {
+                if (!BX_VOODOORUSH_THIS bx_vgacore_c::s.y_doublescan) {
                   vid_ptr = BX_VOODOORUSH_THIS disp_ptr + (yc * pitch + ((xc + hp) << 1));
                 } else {
                   if (!BX_VOODOORUSH_THIS svga_double_width) {
@@ -958,7 +925,7 @@ void bx_voodoo_rush_c::update(void)
                       }
                     }
                   }
-                  if (!BX_VOODOORUSH_THIS s.y_doublescan || (r & 1)) {
+                  if (!BX_VOODOORUSH_THIS bx_vgacore_c::s.y_doublescan || (r & 1)) {
                     vid_ptr  += pitch;
                   }
                   tile_ptr += info.pitch;
@@ -973,7 +940,7 @@ void bx_voodoo_rush_c::update(void)
           for (yc=0, yti = 0; yc<height; yc+=Y_TILESIZE, yti++) {
             for (xc=0, xti = 0; xc<width; xc+=X_TILESIZE, xti++) {
               if (GET_TILE_UPDATED (xti, yti)) {
-                if (!BX_VOODOORUSH_THIS s.y_doublescan) {
+                if (!BX_VOODOORUSH_THIS bx_vgacore_c::s.y_doublescan) {
                   vid_ptr = BX_VOODOORUSH_THIS disp_ptr + (yc * pitch + 3 * xc);
                 } else {
                   if (!BX_VOODOORUSH_THIS svga_double_width) {
@@ -1007,7 +974,7 @@ void bx_voodoo_rush_c::update(void)
                       }
                     }
                   }
-                  if (!BX_VOODOORUSH_THIS s.y_doublescan || (r & 1)) {
+                  if (!BX_VOODOORUSH_THIS bx_vgacore_c::s.y_doublescan || (r & 1)) {
                     vid_ptr  += pitch;
                   }
                   tile_ptr += info.pitch;
@@ -1022,7 +989,7 @@ void bx_voodoo_rush_c::update(void)
           for (yc=0, yti = 0; yc<height; yc+=Y_TILESIZE, yti++) {
             for (xc=0, xti = 0; xc<width; xc+=X_TILESIZE, xti++) {
               if (GET_TILE_UPDATED (xti, yti)) {
-                if (!BX_VOODOORUSH_THIS s.y_doublescan) {
+                if (!BX_VOODOORUSH_THIS bx_vgacore_c::s.y_doublescan) {
                   vid_ptr = BX_VOODOORUSH_THIS disp_ptr + (yc * pitch + (xc << 2));
                 } else {
                   if (!BX_VOODOORUSH_THIS svga_double_width) {
@@ -1056,7 +1023,7 @@ void bx_voodoo_rush_c::update(void)
                       }
                     }
                   }
-                  if (!BX_VOODOORUSH_THIS s.y_doublescan || (r & 1)) {
+                  if (!BX_VOODOORUSH_THIS bx_vgacore_c::s.y_doublescan || (r & 1)) {
                     vid_ptr  += pitch;
                   }
                   tile_ptr += info.pitch;
@@ -1090,11 +1057,11 @@ void bx_voodoo_rush_c::update_bank_ptr(Bit8u bank_index)
   else
     offset <<= 12;
 
-  if (BX_VOODOORUSH_THIS s.memsize <= offset) {
+  if (BX_VOODOORUSH_THIS bx_vgacore_c::s.memsize <= offset) {
     limit = 0;
     BX_ERROR(("bank offset %08x is invalid",offset));
   } else {
-    limit = BX_VOODOORUSH_THIS s.memsize - offset;
+    limit = BX_VOODOORUSH_THIS bx_vgacore_c::s.memsize - offset;
   }
 
   if (!BX_VOODOORUSH_THIS banking_is_dual() && (bank_index != 0)) {
@@ -1110,7 +1077,7 @@ void bx_voodoo_rush_c::update_bank_ptr(Bit8u bank_index)
     BX_VOODOORUSH_THIS bank_base[bank_index] = offset;
     BX_VOODOORUSH_THIS bank_limit[bank_index] = limit;
     if ((BX_VOODOORUSH_THIS crtc.reg[0x1b] & 0x02) != 0) {
-      BX_VOODOORUSH_THIS s.ext_offset = BX_VOODOORUSH_THIS bank_base[0];
+      BX_VOODOORUSH_THIS bx_vgacore_c::s.ext_offset = BX_VOODOORUSH_THIS bank_base[0];
     }
   } else {
     BX_VOODOORUSH_THIS bank_base[bank_index] = 0;
@@ -1230,14 +1197,14 @@ void bx_voodoo_rush_c::svga_write_crtc(Bit32u address, unsigned index, Bit8u val
 
   if (update_pitch) {
     if ((BX_VOODOORUSH_THIS crtc.reg[0x1b] & 0x02) != 0) {
-      BX_VOODOORUSH_THIS s.vgamem_mask = 0xfffff;
-      BX_VOODOORUSH_THIS s.ext_start_addr = ((BX_VOODOORUSH_THIS crtc.reg[0x1b] & 0x01) << 16) |
+      BX_VOODOORUSH_THIS bx_vgacore_c::s.vgamem_mask = 0xfffff;
+      BX_VOODOORUSH_THIS bx_vgacore_c::s.ext_start_addr = ((BX_VOODOORUSH_THIS crtc.reg[0x1b] & 0x01) << 16) |
                                         ((BX_VOODOORUSH_THIS crtc.reg[0x1b] & 0x04) << 15);
-      BX_VOODOORUSH_THIS s.ext_offset = BX_VOODOORUSH_THIS bank_base[0];
+      BX_VOODOORUSH_THIS bx_vgacore_c::s.ext_offset = BX_VOODOORUSH_THIS bank_base[0];
     } else {
-      BX_VOODOORUSH_THIS s.vgamem_mask = 0x3ffff;
-      BX_VOODOORUSH_THIS s.ext_start_addr = 0;
-      BX_VOODOORUSH_THIS s.ext_offset = 0;
+      BX_VOODOORUSH_THIS bx_vgacore_c::s.vgamem_mask = 0x3ffff;
+      BX_VOODOORUSH_THIS bx_vgacore_c::s.ext_start_addr = 0;
+      BX_VOODOORUSH_THIS bx_vgacore_c::s.ext_offset = 0;
     }
     BX_VOODOORUSH_THIS svga_pitch = (BX_VOODOORUSH_THIS crtc.reg[0x13] << 3) | ((BX_VOODOORUSH_THIS crtc.reg[0x1b] & 0x10) << 7);
     BX_VOODOORUSH_THIS svga_needs_update_mode = 1;
@@ -1258,11 +1225,11 @@ void bx_voodoo_rush_c::svga_init_pcihandlers(void)
      &devfunc, "voodoorush", "Voodoo Rush PCI");
 
   // initialize readonly registers
-  if (s.model == VOODOO_RUSH) {
-    BX_VOODOORUSH_THIS init_pci_conf(0x1142, 0x643D, 0x02, 0x030000, 0x00, 0);
-  }
+  // if (s.model == VOODOO_RUSH) { // TODO: check model properly
+  BX_VOODOORUSH_THIS init_pci_conf(0x1142, 0x643D, 0x02, 0x030000, 0x00, 0);
+  // }
   BX_VOODOORUSH_THIS pci_conf[0x04] = (PCI_COMMAND_IOACCESS | PCI_COMMAND_MEMACCESS);
-  BX_VOODOORUSH_THIS pci_conf[0x06] = (PCI_STATUS_66MHZ | PCI_STATUS_DEVSEL_SLOW);
+  BX_VOODOORUSH_THIS pci_conf[0x06] = (Bit8u)(PCI_STATUS_66MHZ | PCI_STATUS_DEVSEL_SLOW);
 
   BX_VOODOORUSH_THIS pci_conf[0x14] = 0x01;
 
