@@ -79,8 +79,10 @@ extern Bit8u dither2_lookup[256*16*2];
 /* fast log2 lookup */
 extern Bit8u voodoo_log[1 << LOG_LOOKUP_BITS];
 
+#ifndef VOODOO_FUNC_DEFINED
+#define VOODOO_FUNC_DEFINED
 
-void raster_function(int tmus, void *destbase, Bit32s y, const poly_extent *extent, const void *extradata, int threadid) {
+static void raster_function(int tmus, void *destbase, Bit32s y, const poly_extent *extent, const void *extradata, int threadid) {
 	const poly_extra_data *extra = (const poly_extra_data *) extradata;
 	voodoo_state *v = extra->state;
 	stats_block *stats = &v->thread_stats[threadid];
@@ -231,7 +233,7 @@ void raster_function(int tmus, void *destbase, Bit32s y, const poly_extent *exte
  *
  *************************************/
 
-void ncc_table_write(ncc_table *n, offs_t regnum, Bit32u data)
+static void ncc_table_write(ncc_table *n, offs_t regnum, Bit32u data)
 {
   /* I/Q entries reference the plaette if the high bit is set */
   if (regnum >= 4 && (data & 0x80000000) && n->palette)
@@ -293,7 +295,7 @@ void ncc_table_write(ncc_table *n, offs_t regnum, Bit32u data)
 }
 
 
-void ncc_table_update(ncc_table *n)
+static void ncc_table_update(ncc_table *n)
 {
   int r, g, b, i;
 
@@ -324,7 +326,7 @@ void ncc_table_update(ncc_table *n)
   n->dirty = 0;
 }
 
-void recompute_texture_params(tmu_state *t)
+static void recompute_texture_params(tmu_state *t)
 {
   int bppscale;
   Bit32u base;
@@ -474,7 +476,7 @@ BX_CPP_INLINE Bit32s round_coordinate(float value)
   return result + (value - (float)result > 0.5f);
 }
 
-Bit32u poly_render_triangle(void *dest, const rectangle *cliprect, int texcount, int paramcount, const poly_vertex *v1, const poly_vertex *v2, const poly_vertex *v3, poly_extra_data *extra)
+static Bit32u poly_render_triangle(void *dest, const rectangle *cliprect, int texcount, int paramcount, const poly_vertex *v1, const poly_vertex *v2, const poly_vertex *v3, poly_extra_data *extra)
 {
   float dxdy_v1v2, dxdy_v1v3, dxdy_v2v3;
   const poly_vertex *tv;
@@ -576,7 +578,7 @@ Bit32u poly_render_triangle(void *dest, const rectangle *cliprect, int texcount,
   return pixels;
 }
 
-Bit32s triangle_create_work_item(Bit16u *drawbuf, int texcount)
+static Bit32s triangle_create_work_item(Bit16u *drawbuf, int texcount)
 {
   poly_extra_data extra;
   poly_vertex vert[3];
@@ -652,7 +654,7 @@ Bit32s triangle_create_work_item(Bit16u *drawbuf, int texcount)
 }
 
 
-Bit32s triangle()
+static Bit32s triangle()
 {
   int texcount = 0;
   Bit16u *drawbuf;
@@ -964,7 +966,7 @@ static void raster_fastfill(void *destbase, Bit32s y, const poly_extent *extent,
 }
 
 
-Bit32u poly_render_triangle_custom(void *dest, const rectangle *cliprect, int startscanline, int numscanlines, const poly_extent *extents, poly_extra_data *extra)
+static Bit32u poly_render_triangle_custom(void *dest, const rectangle *cliprect, int startscanline, int numscanlines, const poly_extent *extents, poly_extra_data *extra)
 {
   Bit32s curscan, scaninc;
   Bit32s v1yclip, v3yclip;
@@ -1027,7 +1029,7 @@ Bit32u poly_render_triangle_custom(void *dest, const rectangle *cliprect, int st
   return pixels;
 }
 
-Bit32s fastfill(voodoo_state *v)
+static Bit32s fastfill(voodoo_state *v)
 {
   int sx = (v->reg[clipLeftRight].u >> 16) & v->fbi.clip_mask;
   int ex = (v->reg[clipLeftRight].u >> 0) & v->fbi.clip_mask;
@@ -1102,7 +1104,7 @@ Bit32s fastfill(voodoo_state *v)
   return pixels / 2;
 }
 
-void swap_buffers(voodoo_state *v)
+static void swap_buffers(voodoo_state *v)
 {
   int count;
 
@@ -1151,7 +1153,7 @@ void swap_buffers(voodoo_state *v)
     swapbuffer - execute the 'swapbuffer'
     command
 -------------------------------------------------*/
-Bit32s swapbuffer(voodoo_state *v, Bit32u data)
+static Bit32s swapbuffer(voodoo_state *v, Bit32u data)
 {
   /* set the don't swap value for Voodoo 2 */
   v->fbi.vblank_swap_pending = 1;
@@ -1209,7 +1211,7 @@ static void update_statistics(voodoo_state *v, int accumulate)
   memset(&v->fbi.lfb_stats, 0, sizeof(v->fbi.lfb_stats));
 }
 
-void reset_counters(voodoo_state *v)
+static void reset_counters(voodoo_state *v)
 {
   update_statistics(v, FALSE);
   v->reg[fbiPixelsIn].u = 0;
@@ -1220,7 +1222,7 @@ void reset_counters(voodoo_state *v)
 }
 
 
-void soft_reset(voodoo_state *v)
+static void soft_reset(voodoo_state *v)
 {
   reset_counters(v);
   v->reg[fbiTrianglesOut].u = 0;
@@ -1230,7 +1232,7 @@ void soft_reset(voodoo_state *v)
 }
 
 
-void recompute_video_memory(voodoo_state *v)
+static void recompute_video_memory(voodoo_state *v)
 {
   Bit32u buffer_pages = FBIINIT2_VIDEO_BUFFER_OFFSET(v->reg[fbiInit2].u);
   Bit32u fifo_start_page = FBIINIT4_MEMORY_FIFO_START_ROW(v->reg[fbiInit4].u);
@@ -1330,7 +1332,7 @@ void recompute_video_memory(voodoo_state *v)
 }
 
 
-void voodoo2_bitblt_mux(Bit8u rop, Bit8u *dst_ptr, Bit8u *src_ptr, int dpxsize)
+static void voodoo2_bitblt_mux(Bit8u rop, Bit8u *dst_ptr, Bit8u *src_ptr, int dpxsize)
 {
   Bit8u mask, inbits, outbits;
 
@@ -1350,7 +1352,7 @@ void voodoo2_bitblt_mux(Bit8u rop, Bit8u *dst_ptr, Bit8u *src_ptr, int dpxsize)
 
 #define BLT v->blt
 
-bool clip_check(Bit16u x, Bit16u y)
+static bool clip_check(Bit16u x, Bit16u y)
 {
   if (!BLT.clip_en)
     return 1;
@@ -1362,7 +1364,7 @@ bool clip_check(Bit16u x, Bit16u y)
 }
 
 
-Bit8u chroma_check(Bit8u *ptr, Bit16u min, Bit16u max, bool dst)
+static Bit8u chroma_check(Bit8u *ptr, Bit16u min, Bit16u max, bool dst)
 {
   Bit8u pass = 0;
   Bit32u color;
@@ -1385,7 +1387,7 @@ Bit8u chroma_check(Bit8u *ptr, Bit16u min, Bit16u max, bool dst)
   return pass;
 }
 
-void voodoo2_bitblt(void)
+static void voodoo2_bitblt(void)
 {
   Bit8u cmd, rop = 0, *dst_ptr, *src_ptr;
   Bit16u c, cols, src_x, src_y, r, rows, size, x;
@@ -1554,7 +1556,7 @@ void voodoo2_bitblt(void)
   v->fbi.video_changed = 1;
 }
 
-void voodoo2_bitblt_cpu_to_screen(Bit32u data)
+static void voodoo2_bitblt_cpu_to_screen(Bit32u data)
 {
   Bit8u rop = 0, *dst_ptr, *dst_ptr1, *src_ptr, color[2];
   Bit8u b, c, g, i, j, r;
@@ -1711,7 +1713,7 @@ void voodoo2_bitblt_cpu_to_screen(Bit32u data)
 }
 
 
-void dacdata_w(dac_state *d, Bit8u regnum, Bit8u data)
+static void dacdata_w(dac_state *d, Bit8u regnum, Bit8u data)
 {
   d->reg[regnum] = data;
 
@@ -1752,7 +1754,7 @@ void dacdata_w(dac_state *d, Bit8u regnum, Bit8u data)
 }
 
 
-void dacdata_r(dac_state *d, Bit8u regnum)
+static void dacdata_r(dac_state *d, Bit8u regnum)
 {
   Bit8u result = 0xff;
 
@@ -2828,7 +2830,7 @@ nextpixel:
   return 0;
 }
 
-Bit32u cmdfifo_calc_depth_needed(cmdfifo_info *f)
+static Bit32u cmdfifo_calc_depth_needed(cmdfifo_info *f)
 {
   Bit32u command, needed = BX_MAX_BIT32U;
   Bit8u type;
@@ -2935,7 +2937,7 @@ void cmdfifo_w(cmdfifo_info *f, Bit32u fbi_offset, Bit32u data)
   BX_UNLOCK(cmdfifo_mutex);
 }
 
-Bit32u cmdfifo_r(cmdfifo_info *f)
+static Bit32u cmdfifo_r(cmdfifo_info *f)
 {
   Bit32u data;
 
@@ -2951,7 +2953,7 @@ Bit32u cmdfifo_r(cmdfifo_info *f)
   return data;
 }
 
-void cmdfifo_process(cmdfifo_info *f)
+static void cmdfifo_process(cmdfifo_info *f)
 {
   Bit32u command, data, mask, nwords, regaddr;
   Bit8u type, code, nvertex, smode, disbytes, datalen = 0;
@@ -3251,7 +3253,7 @@ void cmdfifo_process(cmdfifo_info *f)
 
 #define FBI_TRICK 1
 #if FBI_TRICK
-bool fifo_add_fbi(Bit32u type_offset, Bit32u data)
+static bool fifo_add_fbi(Bit32u type_offset, Bit32u data)
 {
   bool ret = 0;
 
@@ -3266,7 +3268,7 @@ bool fifo_add_fbi(Bit32u type_offset, Bit32u data)
   return ret;
 }
 
-bool fifo_add_common(Bit32u type_offset, Bit32u data)
+static bool fifo_add_common(Bit32u type_offset, Bit32u data)
 {
   bool ret = 0;
 
@@ -3287,7 +3289,7 @@ bool fifo_add_common(Bit32u type_offset, Bit32u data)
   return ret;
 }
 #else
-bool fifo_add_common(Bit32u type_offset, Bit32u data)
+static bool fifo_add_common(Bit32u type_offset, Bit32u data)
 {
   bool ret = 0;
 
@@ -3831,7 +3833,7 @@ Bit32u voodoo_r(Bit32u offset)
   return 0xffffffff;
 }
 
-void init_tmu(voodoo_state *v, tmu_state *t, voodoo_reg *reg, void *memory, int tmem)
+static void init_tmu(voodoo_state *v, tmu_state *t, voodoo_reg *reg, void *memory, int tmem)
 {
   /* allocate texture RAM */
   t->ram = (Bit8u *)memory;
@@ -3880,7 +3882,7 @@ void init_tmu(voodoo_state *v, tmu_state *t, voodoo_reg *reg, void *memory, int 
   }
 }
 
-void init_tmu_shared(tmu_shared_state *s)
+static void init_tmu_shared(tmu_shared_state *s)
 {
   int val;
 
@@ -4202,3 +4204,5 @@ void update_pens(void)
     v->fbi.clut_dirty = 0;
   }
 }
+
+#endif // VOODOO_FUNC_DEFINED
