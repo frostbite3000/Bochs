@@ -23,7 +23,7 @@
 //
 /////////////////////////////////////////////////////////////////////////
 
-#define BX_PLUGGABLE
+//#define BX_PLUGGABLE  // Commented out for non-plugin build
 
 #include "iodev.h"
 #include "vgacore.h"
@@ -128,8 +128,13 @@ static bx_voodoo_rush_c *theSvga = NULL;
 #include "voodoo_types.h"
 #include "voodoo_data.h"
 #include "voodoo_main.h"
-voodoo_state *v;
-#include "voodoo_func.h"
+static voodoo_state *v_rush;
+extern voodoo_state *v; // Reference to the global v used by voodoo functions
+
+// Function declarations for voodoo functions we need
+void voodoo_init(int type);
+Bit32u voodoo_r(Bit32u offset);
+void voodoo_w(Bit32u offset, Bit32u data, Bit32u mask);
 
 PLUGIN_ENTRY_FOR_MODULE(voodoorush)
 {
@@ -166,10 +171,11 @@ bool bx_voodoo_rush_c::init_vga_extension(void)
   BX_VOODOORUSH_THIS pci_enabled = SIM->is_pci_device("voodoorush");
   
   // Initialize voodoo state for voodoo_r/voodoo_w functions
-  if (v == NULL) {
-    v = new voodoo_state;
-    memset(v, 0, sizeof(voodoo_state));
-    v->type = VOODOO_RUSH;
+  if (v_rush == NULL) {
+    v_rush = new voodoo_state;
+    memset(v_rush, 0, sizeof(voodoo_state));
+    v_rush->type = VOODOO_RUSH;
+    v = v_rush; // Set global v to point to our rush state
     voodoo_init(0);
   }
   
@@ -329,7 +335,10 @@ void bx_voodoo_rush_c::redraw_area(unsigned x0, unsigned y0, unsigned width,
 bool bx_voodoo_rush_c::voodoo_rush_mem_read_handler(bx_phy_address addr, unsigned len,
                                         void *data, void *param)
 {
+  voodoo_state *v_saved = v;
+  v = v_rush; // Set global v to point to our rush state
   Bit32u val = voodoo_r((addr>>2) & 0x3FFFFF);
+  v = v_saved; // Restore previous v
   if (len == 4)
     *(Bit32u*)data = val;
   else if ((len == 2) && ((addr & 3) != 3))
@@ -400,6 +409,8 @@ void bx_voodoo_rush_c::mem_write(bx_phy_address addr, unsigned len, void *data)
     data_ptr--;
 #endif
   }
+  voodoo_state *v_saved = v;
+  v = v_rush; // Set global v to point to our rush state
   if (len == 8) {
     voodoo_w((addr >> 2) & 0x3FFFFF, (Bit32u)value, 0xffffffff);
     voodoo_w(((addr >> 2) + 1) & 0x3FFFFF, (Bit32u)(value >> 32), 0xffffffff);
@@ -416,6 +427,7 @@ void bx_voodoo_rush_c::mem_write(bx_phy_address addr, unsigned len, void *data)
   } else {
     BX_ERROR(("Voodoo Rush mem_write(): unknown len=%d", len));
   }
+  v = v_saved; // Restore previous v
 }
 
 Bit32u bx_voodoo_rush_c::read_handler(void *this_ptr, Bit32u address, unsigned io_len)

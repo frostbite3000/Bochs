@@ -203,7 +203,7 @@ enum endianness_t
   ENDIANNESS_LITTLE,
   ENDIANNESS_BIG
 };
-const endianness_t ENDIANNESS_NATIVE = ENDIANNESS_LITTLE;
+extern const endianness_t ENDIANNESS_NATIVE;
 #define ENDIAN_VALUE_LE_BE(endian,leval,beval)  (((endian) == ENDIANNESS_LITTLE) ? (leval) : (beval))
 #define NATIVE_ENDIAN_VALUE_LE_BE(leval,beval)  ENDIAN_VALUE_LE_BE(ENDIANNESS_NATIVE, leval, beval)
 #define BYTE4_XOR_LE(a)         ((a) ^ NATIVE_ENDIAN_VALUE_LE_BE(0,3))
