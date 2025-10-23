@@ -164,6 +164,15 @@ bool bx_voodoo_rush_c::init_vga_extension(void)
   // initialize SVGA stuffs.
   BX_VOODOORUSH_THIS bx_vgacore_c::init_iohandlers(svga_read_handler, svga_write_handler, "voodoorush");
   BX_VOODOORUSH_THIS pci_enabled = SIM->is_pci_device("voodoorush");
+  
+  // Initialize voodoo state for voodoo_r/voodoo_w functions
+  if (v == NULL) {
+    v = new voodoo_state;
+    memset(v, 0, sizeof(voodoo_state));
+    v->type = VOODOO_RUSH;
+    voodoo_init(0);
+  }
+  
   BX_VOODOORUSH_THIS svga_init_members();
   BX_VOODOORUSH_THIS svga_init_pcihandlers();
   BX_VOODOORUSH_THIS s.max_xres = 1600;
@@ -352,7 +361,19 @@ Bit8u bx_voodoo_rush_c::mem_read(bx_phy_address addr)
 bool bx_voodoo_rush_c::voodoo_rush_mem_write_handler(bx_phy_address addr, unsigned len,
                                          void *data, void *param)
 {
-  // TODO: Implement proper voodoo memory write handling
+  bx_voodoo_rush_c *class_ptr = (bx_voodoo_rush_c*)param;
+  if (len == 16) {
+    Bit64u *data64 = (Bit64u*)data;
+#ifdef BX_LITTLE_ENDIAN
+    class_ptr->mem_write(addr, 8, &data64[0]);
+    class_ptr->mem_write(addr + 8, 8, &data64[1]);
+#else
+    class_ptr->mem_write(addr, 8, &data64[1]);
+    class_ptr->mem_write(addr + 8, 8, &data64[0]);
+#endif
+  } else {
+    class_ptr->mem_write(addr, len, data);
+  }
   return 1;
 }
 
@@ -360,6 +381,41 @@ void bx_voodoo_rush_c::mem_write(bx_phy_address addr, Bit8u value)
 {
   // For single byte writes, just pass to VGA core
   BX_VOODOORUSH_THIS bx_vgacore_c::mem_write(addr, value);
+}
+
+void bx_voodoo_rush_c::mem_write(bx_phy_address addr, unsigned len, void *data)
+{
+  Bit64u value = 0;
+
+#ifdef BX_LITTLE_ENDIAN
+  Bit8u *data_ptr = (Bit8u *) data;
+#else // BX_BIG_ENDIAN
+  Bit8u *data_ptr = (Bit8u *) data + (len - 1);
+#endif
+  for (unsigned i = 0; i < len; i++) {
+    value |= ((Bit64u)*data_ptr << (i * 8));
+#ifdef BX_LITTLE_ENDIAN
+    data_ptr++;
+#else // BX_BIG_ENDIAN
+    data_ptr--;
+#endif
+  }
+  if (len == 8) {
+    voodoo_w((addr >> 2) & 0x3FFFFF, (Bit32u)value, 0xffffffff);
+    voodoo_w(((addr >> 2) + 1) & 0x3FFFFF, (Bit32u)(value >> 32), 0xffffffff);
+  } else if (len == 4) {
+    voodoo_w((addr >> 2) & 0x3FFFFF, (Bit32u)value, 0xffffffff);
+  } else if (len == 2) {
+    if (addr & 3) {
+      voodoo_w((addr >> 2) & 0x3FFFFF, Bit32u(value << 16), 0xffff0000);
+    } else {
+      voodoo_w((addr >> 2) & 0x3FFFFF, (Bit32u)value, 0x0000ffff);
+    }
+  } else if (len == 1) {
+    voodoo_w((addr >> 2) & 0x3FFFFF, (Bit32u)(value << (8 * (addr & 3))), 0xffffffff);
+  } else {
+    BX_ERROR(("Voodoo Rush mem_write(): unknown len=%d", len));
+  }
 }
 
 Bit32u bx_voodoo_rush_c::read_handler(void *this_ptr, Bit32u address, unsigned io_len)

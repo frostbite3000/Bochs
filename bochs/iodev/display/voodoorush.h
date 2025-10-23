@@ -67,6 +67,7 @@ public:
                            unsigned width, unsigned height);
   virtual Bit8u mem_read(bx_phy_address addr);
   virtual void mem_write(bx_phy_address addr, Bit8u value);
+  void mem_write(bx_phy_address addr, unsigned len, void *data);
   virtual void get_text_snapshot(Bit8u **text_snapshot,
                                  unsigned *txHeight, unsigned *txWidth);
   virtual void register_state(void);
