@@ -1786,7 +1786,7 @@ static void dacdata_r(dac_state *d, Bit8u regnum)
   d->read_result = result;
 }
 
-void register_w(Bit32u offset, Bit32u data, bool log)
+static void register_w(Bit32u offset, Bit32u data, bool log)
 {
   Bit32u regnum  = (offset) & 0xff;
   Bit32u chips   = (offset>>8) & 0xf;
@@ -2350,7 +2350,7 @@ default_case:
   }
 }
 
-Bit32s texture_w(Bit32u offset, Bit32u data)
+static Bit32s texture_w(Bit32u offset, Bit32u data)
 {
   int tmunum = (offset >> 19) & 0x03;
   BX_DEBUG(("write TMU%d offset 0x%x value 0x%x", tmunum, offset, data));
@@ -2466,7 +2466,7 @@ Bit32s texture_w(Bit32u offset, Bit32u data)
   return 0;
 }
 
-Bit32u lfb_w(Bit32u offset, Bit32u data, Bit32u mem_mask)
+static Bit32u lfb_w(Bit32u offset, Bit32u data, Bit32u mem_mask)
 {
   Bit16u *dest, *depth;
   Bit32u destmax, depthmax;
@@ -2890,7 +2890,7 @@ static Bit32u cmdfifo_calc_depth_needed(cmdfifo_info *f)
   return needed;
 }
 
-void cmdfifo_w(cmdfifo_info *f, Bit32u fbi_offset, Bit32u data)
+static void cmdfifo_w(cmdfifo_info *f, Bit32u fbi_offset, Bit32u data)
 {
   BX_LOCK(cmdfifo_mutex);
   *(Bit32u*)(&v->fbi.ram[fbi_offset]) = data;
@@ -3316,7 +3316,7 @@ static bool fifo_add_common(Bit32u type_offset, Bit32u data)
 #endif
 
 
-void register_w_common(Bit32u offset, Bit32u data)
+static void register_w_common(Bit32u offset, Bit32u data)
 {
   Bit32u regnum  = (offset) & 0xff;
   Bit32u chips   = (offset>>8) & 0xf;
@@ -3579,7 +3579,7 @@ void register_w_common(Bit32u offset, Bit32u data)
 }
 
 
-Bit32u register_r(Bit32u offset)
+static Bit32u register_r(Bit32u offset)
 {
   Bit32u regnum  = (offset) & 0xff;
   Bit32u chips   = (offset>>8) & 0xf;
@@ -3726,7 +3726,7 @@ Bit32u register_r(Bit32u offset)
   return result;
 }
 
-Bit32u lfb_r(Bit32u offset)
+static Bit32u lfb_r(Bit32u offset)
 {
   Bit16u *buffer;
   Bit32u bufmax;
@@ -3795,7 +3795,7 @@ Bit32u lfb_r(Bit32u offset)
   return data;
 }
 
-void voodoo_w(Bit32u offset, Bit32u data, Bit32u mask)
+static void voodoo_w(Bit32u offset, Bit32u data, Bit32u mask)
 {
   Bit32u type;
 
@@ -3823,7 +3823,7 @@ void voodoo_w(Bit32u offset, Bit32u data, Bit32u mask)
   }
 }
 
-Bit32u voodoo_r(Bit32u offset)
+static Bit32u voodoo_r(Bit32u offset)
 {
   if (!(offset & (0xc00000/4)))
     return register_r(offset);
@@ -3931,7 +3931,7 @@ static void init_tmu_shared(tmu_shared_state *s)
     v->banshee.blt.rop_flags[num] = flags; \
   } while (0);
 
-void banshee_bitblt_init()
+static void banshee_bitblt_init()
 {
   for (int i = 0; i < 0x100; i++) {
     SETUP_BITBLT(i, nop, BX_ROP_PATTERN);
@@ -3965,7 +3965,7 @@ void banshee_bitblt_init()
   SETUP_BITBLT(0xff, 1, 0);                              // 1
 }
 
-void voodoo_init(Bit8u _type)
+static void voodoo_init(Bit8u _type)
 {
   int pen;
   int val;
@@ -4134,7 +4134,7 @@ void voodoo_init(Bit8u _type)
   soft_reset(v);
 }
 
-void update_pens(void)
+static void update_pens(void)
 {
   int x, y;
 
