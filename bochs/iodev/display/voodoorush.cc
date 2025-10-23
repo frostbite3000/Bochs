@@ -129,7 +129,11 @@ static bx_voodoo_rush_c *theSvga = NULL;
 #include "voodoo_data.h"
 #include "voodoo_main.h"
 extern voodoo_state *v;
-#include "voodoo_func.h"
+
+// Forward declarations for voodoo functions used by voodoorush
+extern void voodoo_init(Bit8u _type);
+extern Bit32u voodoo_r(Bit32u offset);
+extern void voodoo_w(Bit32u offset, Bit32u data, Bit32u mask);
 
 PLUGIN_ENTRY_FOR_MODULE(voodoorush)
 {
