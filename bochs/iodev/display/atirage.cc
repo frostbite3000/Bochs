@@ -781,10 +781,10 @@ void bx_atirage_c::update(void)
     else
       BX_PANIC(("unknown bpp"));
 
-    Bit32u iHeight = (BX_ATIRAGE_THIS crtc.reg[0] + 
-                     ((CRTC_H_TOTAL_DISP & 1) << 8) + 1) * 8;
-    Bit32u iWidth = (BX_ATIRAGE_THIS crtc.reg[6] + 
-                    ((CRTC_V_TOTAL_DISP & 7) << 8) + 1);
+    Bit32u iHeight = BX_ATIRAGE_THIS crtc.reg[0] + ((CRTC_H_TOTAL_DISP & 0x01) << 8) + 5;
+    Bit32u iWidth =  BX_ATIRAGE_THIS crtc.reg[6] + ((BX_ATIRAGE_THIS crtc.reg[7] & 0x01) << 8) +
+	  				((BX_ATIRAGE_THIS crtc.reg[7] & 0x20) << 4) +
+                    ((CRTC_V_TOTAL_DISP & 0x01) << 10) + 2;
 
     if (iWidth != BX_ATIRAGE_THIS svga_xres ||
         iHeight != BX_ATIRAGE_THIS svga_yres ||
