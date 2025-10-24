@@ -172,8 +172,7 @@ bool bx_voodoo_rush_c::init_vga_extension(void)
   if (v == NULL) {
     v = new voodoo_state;
     memset(v, 0, sizeof(voodoo_state));
-    v->type = VOODOO_RUSH;
-    voodoo_init(0);
+    voodoo_init(VOODOO_RUSH);
   }
   
   BX_VOODOORUSH_THIS svga_init_members();
