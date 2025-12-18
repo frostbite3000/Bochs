@@ -59,6 +59,9 @@ void BX_CPU_C::init_MSRs()
   msr_desc[BX_MSR_APICBASE] = new MSR_Descriptor("MSR_APICBASE", BX_ISA_PENTIUM);
 #endif
 
+  msr_desc[BX_MSR_IA32_APERF] = new MSR_Descriptor("MSR_IA32_APERF", BX_ISA_PENTIUM);
+  msr_desc[BX_MSR_IA32_MPERF] = new MSR_Descriptor("MSR_IA32_MPERF", BX_ISA_PENTIUM);
+
 #if BX_CPU_LEVEL >= 6
   msr_desc[BX_MSR_SYSENTER_CS] = new MSR_Descriptor("MSR_IA32_SYSENTER_CS", BX_ISA_SYSENTER_SYSEXIT);
   msr_desc[BX_MSR_SYSENTER_ESP] = new MSR_Descriptor("MSR_IA32_SYSENTER_ESP", BX_ISA_SYSENTER_SYSEXIT);
@@ -251,6 +254,13 @@ bool BX_CPP_AttrRegparmN(2) BX_CPU_C::rdmsr(Bit32u index, Bit64u *msr)
       BX_INFO(("RDMSR: read of MSR_IA32_PERFEVTSEL%d", index - BX_MSR_PERFEVTSEL0));
       return handle_unknown_rdmsr(index, msr);
 #endif
+
+    case BX_MSR_IA32_APERF:
+    case BX_MSR_IA32_MPERF:
+      // IA32_MPERF MSR increments in proportion to a fixed frequency, which is configured when the processor is booted.
+      // IA32_APERF MSR increments in proportion to actual performance, while accounting for hardware coordination of P-state and TM1/TM2; or software initiated throttling.
+      //     use system (not virtualized) TSC counter
+      return BX_CPU_THIS_PTR get_TSC();
 
 #if BX_CPU_LEVEL >= 6
     case BX_MSR_SYSENTER_CS:
@@ -603,7 +613,7 @@ bool BX_CPP_AttrRegparmN(2) BX_CPU_C::rdmsr(Bit32u index, Bit64u *msr)
 
     case BX_MSR_TSC_AUX:
       if (! is_cpu_extension_supported(BX_ISA_RDTSCP)) {
-        BX_ERROR(("RDMSR MSR_TSC_AUX: RTDSCP feature not enabled in the cpu model"));
+        BX_ERROR(("RDMSR MSR_TSC_AUX: RDTSCP feature not enabled in the cpu model"));
         return handle_unknown_rdmsr(index, msr);
       }
       val64 = BX_CPU_THIS_PTR msr.tsc_aux;   // 32 bit MSR
@@ -818,6 +828,14 @@ bool BX_CPP_AttrRegparmN(2) BX_CPU_C::wrmsr(Bit32u index, Bit64u val_64)
       BX_INFO(("WRMSR: write into MSR_IA32_PERFEVTSEL%d: %08x:%08x", index - BX_MSR_PERFEVTSEL0, val32_hi, val32_lo));
       return handle_unknown_wrmsr(index, val_64);
 #endif
+
+    case BX_MSR_IA32_APERF:
+      BX_INFO(("WRMSR: ignore write into MSR IA32_APERF"));
+      break;
+
+    case BX_MSR_IA32_MPERF:
+      BX_INFO(("WRMSR: ignore write into MSR IA32_MPERF"));
+      break;
 
 #if BX_CPU_LEVEL >= 6
     case BX_MSR_SYSENTER_CS:

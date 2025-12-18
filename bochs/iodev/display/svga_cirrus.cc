@@ -818,16 +818,20 @@ void bx_svga_cirrus_c::mem_write(bx_phy_address addr, Bit8u value)
           mem_write_mode4and5_16bpp(mode, offset, value);
         }
       }
-      BX_CIRRUS_THIS svga_needs_update_tile = 1;
-      x = (offset % BX_CIRRUS_THIS svga_pitch) / (BX_CIRRUS_THIS svga_bpp / 8);
-      y = offset / BX_CIRRUS_THIS svga_pitch;
-      if (BX_CIRRUS_THIS s.y_doublescan) {
-        y <<= 1;
+      Bit32u dstart = (Bit32u)(BX_CIRRUS_THIS disp_ptr - BX_CIRRUS_THIS s.memory);
+      if (offset >= dstart) {
+        BX_CIRRUS_THIS svga_needs_update_tile = 1;
+        offset -= dstart;
+        x = (offset % BX_CIRRUS_THIS svga_pitch) / (BX_CIRRUS_THIS svga_bpp / 8);
+        y = offset / BX_CIRRUS_THIS svga_pitch;
+        if (BX_CIRRUS_THIS s.y_doublescan) {
+          y <<= 1;
+        }
+        if (BX_CIRRUS_THIS svga_double_width) {
+          x <<= 1;
+        }
+        SET_TILE_UPDATED(BX_CIRRUS_THIS, x / X_TILESIZE, y / Y_TILESIZE, 1);
       }
-      if (BX_CIRRUS_THIS svga_double_width) {
-        x <<= 1;
-      }
-      SET_TILE_UPDATED(BX_CIRRUS_THIS, x / X_TILESIZE, y / Y_TILESIZE, 1);
       return;
     } else if ((addr >= BX_CIRRUS_THIS pci_bar[1].addr) &&
                (addr < (BX_CIRRUS_THIS pci_bar[1].addr + CIRRUS_PNPMMIO_SIZE))) {
@@ -888,16 +892,20 @@ void bx_svga_cirrus_c::mem_write(bx_phy_address addr, Bit8u value)
           mem_write_mode4and5_16bpp(mode, offset, value);
         }
       }
-      BX_CIRRUS_THIS svga_needs_update_tile = 1;
-      x = (offset % BX_CIRRUS_THIS svga_pitch) / (BX_CIRRUS_THIS svga_bpp / 8);
-      y = offset / BX_CIRRUS_THIS svga_pitch;
-      if (BX_CIRRUS_THIS s.y_doublescan) {
-        y <<= 1;
+      Bit32u dstart = (Bit32u)(BX_CIRRUS_THIS disp_ptr - BX_CIRRUS_THIS s.memory);
+      if (offset >= dstart) {
+        BX_CIRRUS_THIS svga_needs_update_tile = 1;
+        offset -= dstart;
+        x = (offset % BX_CIRRUS_THIS svga_pitch) / (BX_CIRRUS_THIS svga_bpp / 8);
+        y = offset / BX_CIRRUS_THIS svga_pitch;
+        if (BX_CIRRUS_THIS s.y_doublescan) {
+          y <<= 1;
+        }
+        if (BX_CIRRUS_THIS svga_double_width) {
+          x <<= 1;
+        }
+        SET_TILE_UPDATED(BX_CIRRUS_THIS, x / X_TILESIZE, y / Y_TILESIZE, 1);
       }
-      if (BX_CIRRUS_THIS svga_double_width) {
-        x <<= 1;
-      }
-      SET_TILE_UPDATED(BX_CIRRUS_THIS, x / X_TILESIZE, y / Y_TILESIZE, 1);
     }
   } else if (addr >= 0xB8000 && addr < 0xB8100) {
     // memory-mapped I/O.
@@ -2886,6 +2894,12 @@ Bit8u bx_svga_cirrus_c::svga_mmio_blt_read(Bit32u address)
     case CLGD543x_MMIO_BLTSTATUS:
       value = svga_read_control(0x3cf,0x31);
       break;
+    case CLGD543x_MMIO_BLTSTATUS+1:
+    case CLGD543x_MMIO_BLTSTATUS+2:
+    case CLGD543x_MMIO_BLTSTATUS+3:
+      // if status is read as a dword, return upper bytes as 0
+      value = 0;
+      break;
     default:
       BX_ERROR(("MMIO blt read - address 0x%04x",address));
       break;
@@ -3011,6 +3025,11 @@ void bx_svga_cirrus_c::svga_mmio_blt_write(Bit32u address,Bit8u value)
       break;
     case CLGD543x_MMIO_BLTSTATUS:
       svga_write_control(0x3cf,0x31,value);
+      break;
+    case CLGD543x_MMIO_BLTSTATUS+1:
+    case CLGD543x_MMIO_BLTSTATUS+2:
+    case CLGD543x_MMIO_BLTSTATUS+3:
+      // if status is written as a dword, ignore upper bytes
       break;
     default:
       BX_ERROR(("MMIO blt write - address 0x%04x, value 0x%02x",address,value));

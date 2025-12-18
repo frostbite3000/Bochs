@@ -47,10 +47,17 @@ struct gf_texture
   Bit32u offset;
   Bit32u dma_obj;
   Bit32u format;
+  bool cubemap;
   bool linear;
   bool unnormalized;
+  bool compressed;
+  bool dxt_alpha_data;
+  bool dxt_alpha_explicit;
   Bit32u color_bytes;
+  Bit32u levels;
   Bit32u base_size[3];
+  Bit32u size[3];
+  Bit32u face_bytes;
   Bit32u wrap[3];
   Bit32u control0;
   bool enabled;
@@ -168,6 +175,7 @@ struct gf_channel
 
   Bit32u sifm_src;
   bool sifm_swizzled;
+  bool sifm_swizzled_0389;
   Bit32u sifm_operation;
   Bit32u sifm_color_fmt;
   Bit32u sifm_color_bytes;
@@ -232,6 +240,7 @@ struct gf_channel
   float d3d_clip_max;
   Bit32u d3d_cull_face;
   Bit32u d3d_front_face;
+  Bit32u d3d_separate_specular;
   Bit32u d3d_light_enable_mask;
   Bit32u d3d_texgen[8][4];
   Bit32u d3d_texture_matrix_enable[16];
@@ -247,17 +256,23 @@ struct gf_channel
   Bit32u d3d_shader_program;
   Bit32u d3d_shader_obj;
   Bit32u d3d_shader_offset;
+  float d3d_specular_params[6];
+  float d3d_specular_power;
   float d3d_scene_ambient_color[4];
   Bit32u d3d_viewport_horizontal;
   Bit32u d3d_viewport_vertical;
   float d3d_viewport_offset[4];
+  float d3d_combiner_const_color[8][2][4];
   Bit32u d3d_combiner_alpha_ocw[8];
   Bit32u d3d_combiner_color_icw[8];
   float d3d_viewport_scale[4];
   Bit32u d3d_transform_program[544][4];
   float d3d_transform_constant[512][4];
+  float d3d_light_ambient_color[8][3];
   float d3d_light_diffuse_color[8][3];
-  float d3d_light_infinite_direction[8][3];
+  float d3d_light_specular_color[8][3];
+  float d3d_light_inf_half_vector[8][3];
+  float d3d_light_inf_direction[8][3];
   float d3d_normal[3];
   float d3d_diffuse_color[4];
   float d3d_texcoord[4][4];
@@ -267,6 +282,7 @@ struct gf_channel
   Bit32u d3d_vertex_data_array_format_size[16];
   Bit32u d3d_vertex_data_array_format_stride[16];
   bool d3d_vertex_data_array_format_dx[16];
+  bool d3d_vertex_data_array_format_homogeneous[16];
   Bit32u d3d_begin_end;
   bool d3d_primitive_done;
   bool d3d_triangle_flip;
@@ -333,6 +349,12 @@ struct gf_channel
   Bit32u gdi_words_ptr;
   Bit32u gdi_words_left;
   Bit32u* gdi_words;
+
+  Bit32u rect_operation;
+  Bit32u rect_color_fmt;
+  Bit32u rect_color;
+  Bit32u rect_yx;
+  Bit32u rect_hw;
 };
 
 class bx_geforce_c : public bx_vgacore_c
@@ -399,6 +421,7 @@ private:
   BX_GEFORCE_SMF Bit8u vram_read8(Bit32u address);
   BX_GEFORCE_SMF Bit16u vram_read16(Bit32u address);
   BX_GEFORCE_SMF Bit32u vram_read32(Bit32u address);
+  BX_GEFORCE_SMF Bit64u vram_read64(Bit32u address);
   BX_GEFORCE_SMF void vram_write8(Bit32u address, Bit8u value);
   BX_GEFORCE_SMF void vram_write16(Bit32u address, Bit16u value);
   BX_GEFORCE_SMF void vram_write32(Bit32u address, Bit32u value);
@@ -411,6 +434,7 @@ private:
   BX_GEFORCE_SMF Bit8u physical_read8(Bit32u address);
   BX_GEFORCE_SMF Bit16u physical_read16(Bit32u address);
   BX_GEFORCE_SMF Bit32u physical_read32(Bit32u address);
+  BX_GEFORCE_SMF Bit64u physical_read64(Bit32u address);
   BX_GEFORCE_SMF void physical_write8(Bit32u address, Bit8u value);
   BX_GEFORCE_SMF void physical_write16(Bit32u address, Bit16u value);
   BX_GEFORCE_SMF void physical_write32(Bit32u address, Bit32u value);
@@ -418,6 +442,7 @@ private:
   BX_GEFORCE_SMF Bit8u dma_read8(Bit32u object, Bit32u address);
   BX_GEFORCE_SMF Bit16u dma_read16(Bit32u object, Bit32u address);
   BX_GEFORCE_SMF Bit32u dma_read32(Bit32u object, Bit32u address);
+  BX_GEFORCE_SMF Bit64u dma_read64(Bit32u object, Bit32u address);
   BX_GEFORCE_SMF void dma_write8(Bit32u object, Bit32u address, Bit8u value);
   BX_GEFORCE_SMF void dma_write16(Bit32u object, Bit32u address, Bit16u value);
   BX_GEFORCE_SMF void dma_write32(Bit32u object, Bit32u address, Bit32u value);
@@ -451,6 +476,7 @@ private:
   BX_GEFORCE_SMF void execute_gdi(gf_channel* ch, Bit32u cls, Bit32u method, Bit32u param);
   BX_GEFORCE_SMF void execute_swzsurf(gf_channel* ch, Bit32u method, Bit32u param);
   BX_GEFORCE_SMF void execute_chroma(gf_channel* ch, Bit32u method, Bit32u param);
+  BX_GEFORCE_SMF void execute_rect(gf_channel* ch, Bit32u method, Bit32u param);
   BX_GEFORCE_SMF void execute_imageblit(gf_channel* ch, Bit32u method, Bit32u param);
   BX_GEFORCE_SMF void execute_ifc(gf_channel* ch, Bit32u method, Bit32u param);
   BX_GEFORCE_SMF void execute_surf2d(gf_channel* ch, Bit32u method, Bit32u param);
@@ -458,7 +484,7 @@ private:
   BX_GEFORCE_SMF void execute_sifc(gf_channel* ch, Bit32u method, Bit32u param);
   BX_GEFORCE_SMF void execute_beta(gf_channel* ch, Bit32u method, Bit32u param);
   BX_GEFORCE_SMF void execute_tfc(gf_channel* ch, Bit32u method, Bit32u param);
-  BX_GEFORCE_SMF void execute_sifm(gf_channel* ch, Bit32u method, Bit32u param);
+  BX_GEFORCE_SMF void execute_sifm(gf_channel* ch, Bit32u cls, Bit32u method, Bit32u param);
   BX_GEFORCE_SMF void execute_d3d(gf_channel* ch, Bit32u cls, Bit32u method, Bit32u param);
 
   BX_GEFORCE_SMF Bit32u get_pixel(Bit32u obj, Bit32u ofs, Bit32u x, Bit32u cb);
@@ -469,21 +495,23 @@ private:
 
   BX_GEFORCE_SMF void gdi_fillrect(gf_channel* ch, bool clipped);
   BX_GEFORCE_SMF void gdi_blit(gf_channel* ch, Bit32u type);
+  BX_GEFORCE_SMF void rect(gf_channel* ch);
   BX_GEFORCE_SMF void ifc(gf_channel* ch, Bit32u word);
   BX_GEFORCE_SMF void iifc(gf_channel* ch);
   BX_GEFORCE_SMF void sifc(gf_channel* ch);
   BX_GEFORCE_SMF void copyarea(gf_channel* ch);
   BX_GEFORCE_SMF void tfc(gf_channel* ch);
   BX_GEFORCE_SMF void m2mf(gf_channel* ch);
-  BX_GEFORCE_SMF void sifm(gf_channel* ch);
+  BX_GEFORCE_SMF void sifm(gf_channel* ch, bool swizzled);
 
   BX_GEFORCE_SMF bool d3d_scissor_clip(gf_channel* ch, Bit32u* x, Bit32u* y, Bit32u* width, Bit32u* height);
   BX_GEFORCE_SMF void d3d_clear_surface(gf_channel* ch);
   BX_GEFORCE_SMF void d3d_sample_texture(gf_channel* ch,
-    gf_texture* tex, float str[3], float color[4]);
+    gf_texture* tex, float coords_in[3], float color[4]);
   BX_GEFORCE_SMF void d3d_vertex_shader(gf_channel* ch, float in[16][4], float out[16][4]);
   BX_GEFORCE_SMF void d3d_register_combiners(gf_channel* ch, float ps_in[16][4], float out[4]);
   BX_GEFORCE_SMF void d3d_pixel_shader(gf_channel* ch, float in[16][4], float tmp_regs16[64][4], float tmp_regs32[64][4]);
+  BX_GEFORCE_SMF void d3d_normal_to_view(gf_channel* ch, float n[3], float nt[3]);
   BX_GEFORCE_SMF void d3d_triangle(gf_channel* ch, Bit32u base);
   BX_GEFORCE_SMF void d3d_triangle_clipped(gf_channel* ch, float v0[16][4], float v1[16][4], float v2[16][4]);
   BX_GEFORCE_SMF void d3d_clip_to_screen(gf_channel* ch, float pos_clip[4], float pos_screen[4]);
@@ -496,6 +524,7 @@ private:
     Bit8u reg[GEFORCE_CRTC_MAX+1];
   } crtc; // 0x3b4-5/0x3d4-5
 
+  bool mc_soft_intr;
   Bit32u mc_intr_en;
   Bit32u mc_enable;
   Bit32u bus_intr;
