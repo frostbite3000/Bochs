@@ -762,13 +762,24 @@ static void bios_shadow_init(PCIDevice *d)
 
 /* Intel C200 chipset uses PAM registers at different offsets (0x80-0x86)
    PAM0 (0x80): 0xF0000-0xFFFFF (BIOS area)
-   PAM1-6 (0x81-0x86): Various legacy regions */
+   PAM1 (0x81): 0xC0000-0xC7FFF (VGA BIOS)
+   PAM2 (0x82): 0xC8000-0xCFFFF (VGA BIOS)
+   PAM3 (0x83): 0xD0000-0xD7FFF (Expansion ROM)
+   PAM4 (0x84): 0xD8000-0xDFFFF (Expansion ROM)
+   PAM5 (0x85): 0xE0000-0xE7FFF (Expansion ROM)
+   PAM6 (0x86): 0xE8000-0xEFFFF (Expansion ROM) */
 static void bios_shadow_init_c200(PCIDevice *d)
 {
-    int v;
+    int v, i;
 
     if (bios_table_cur_addr == 0)
         return;
+
+    /* Enable read/write for VGA BIOS and expansion ROM regions (C0000-EFFFF)
+       PAM1-6 (0x81-0x86): 0x33 = Read/Write enable for both 16KB regions */
+    for (i = 0x81; i <= 0x86; i++) {
+        pci_config_writeb(d, i, 0x33);
+    }
 
     /* C200 PAM0 register at offset 0x80 controls F0000-FFFFF
        Bits [5:4] = Read Enable for high 64KB
@@ -789,11 +800,16 @@ static void bios_shadow_init_c200(PCIDevice *d)
 static void bios_lock_shadow_ram(void)
 {
     PCIDevice *d = &i440_pcidev;
-    int v;
+    int v, i;
 
     wbinvd();
     if (chipset_c200) {
-        /* C200 uses PAM0 at offset 0x80 */
+        /* C200 uses PAM registers at offset 0x80-0x86 */
+        /* Lock PAM1-6 (C0000-EFFFF) to read-only: 0x11 = Read-only for both regions */
+        for (i = 0x81; i <= 0x86; i++) {
+            pci_config_writeb(d, i, 0x11);
+        }
+        /* Lock PAM0 (F0000-FFFFF) to read-only */
         v = pci_config_readb(d, 0x80);
         v = (v & 0x0f) | (0x10);  /* Read-only */
         pci_config_writeb(d, 0x80, v);

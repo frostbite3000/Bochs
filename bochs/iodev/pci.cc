@@ -288,8 +288,13 @@ bx_pci_bridge_c::reset(unsigned type)
     BX_PCI_THIS pci_conf[0xbb] = 0x00;
     BX_PCI_THIS gart_base = 0;
   }
-  // PAM registers are not at 0x59-0x5F for C200, skip for that chipset
-  if (BX_PCI_THIS chipset != BX_PCI_CHIPSET_I6_C200) {
+  // PAM registers - different offsets for different chipsets
+  if (BX_PCI_THIS chipset == BX_PCI_CHIPSET_I6_C200) {
+    // C200 uses PAM registers at 0x80-0x86
+    for (i=0x80; i<=0x86; i++)
+      BX_PCI_THIS pci_conf[i] = 0x00;
+  } else {
+    // i430FX/i440FX/i440BX use PAM registers at 0x59-0x5F
     for (i=0x59; i<0x60; i++)
       BX_PCI_THIS pci_conf[i] = 0x00;
   }
@@ -449,6 +454,43 @@ void bx_pci_bridge_c::pci_write_handler(Bit8u address, Bit32u value, unsigned io
       case 0x7a:
         BX_PCI_THIS pci_conf[address+i] &= 0x0a;
         BX_PCI_THIS pci_conf[address+i] |= (value8 & 0xf5);
+        break;
+      case 0x80:
+      case 0x81:
+      case 0x82:
+      case 0x83:
+      case 0x84:
+      case 0x85:
+      case 0x86:
+        // C200 PAM registers at 0x80-0x86
+        // PAM0 (0x80): F0000-FFFFF
+        // PAM1 (0x81): C0000-C3FFF, C4000-C7FFF
+        // PAM2 (0x82): C8000-CBFFF, CC000-CFFFF
+        // PAM3 (0x83): D0000-D3FFF, D4000-D7FFF
+        // PAM4 (0x84): D8000-DBFFF, DC000-DFFFF
+        // PAM5 (0x85): E0000-E3FFF, E4000-E7FFF
+        // PAM6 (0x86): E8000-EBFFF, EC000-EFFFF
+        if (BX_PCI_THIS chipset == BX_PCI_CHIPSET_I6_C200) {
+          if (value8 != oldval) {
+            BX_PCI_THIS pci_conf[address+i] = value8;
+            if ((address+i) == 0x80) {
+              // PAM0: F0000-FFFFF
+              area = BX_MEM_AREA_F0000;
+              DEV_mem_set_memory_type(area, 0, (value8 >> 4) & 0x1);
+              DEV_mem_set_memory_type(area, 1, (value8 >> 5) & 0x1);
+            } else {
+              // PAM1-6: Legacy regions C0000-EFFFF
+              area = ((address+i) - 0x81) << 1;
+              DEV_mem_set_memory_type(area, 0, (value8 >> 0) & 0x1);
+              DEV_mem_set_memory_type(area, 1, (value8 >> 1) & 0x1);
+              area++;
+              DEV_mem_set_memory_type(area, 0, (value8 >> 4) & 0x1);
+              DEV_mem_set_memory_type(area, 1, (value8 >> 5) & 0x1);
+            }
+            BX_INFO(("C200 write to PAM register %x (TLB Flush)", address+i));
+            bx_pc_system.MemoryMappingChanged();
+          }
+        }
         break;
       case 0xb4:
         if (BX_PCI_THIS chipset == BX_PCI_CHIPSET_I440BX) {
