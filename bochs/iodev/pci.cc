@@ -470,6 +470,7 @@ void bx_pci_bridge_c::pci_write_handler(Bit8u address, Bit32u value, unsigned io
         // PAM4 (0x84): D8000-DBFFF, DC000-DFFFF
         // PAM5 (0x85): E0000-E3FFF, E4000-E7FFF
         // PAM6 (0x86): E8000-EBFFF, EC000-EFFFF
+        BX_INFO(("PCI write to reg 0x%02x: value=0x%02x, oldval=0x%02x, chipset=%d", address+i, value8, oldval, BX_PCI_THIS chipset));
         if (BX_PCI_THIS chipset == BX_PCI_CHIPSET_I6_C200) {
           if (value8 != oldval) {
             BX_PCI_THIS pci_conf[address+i] = value8;
@@ -478,18 +479,24 @@ void bx_pci_bridge_c::pci_write_handler(Bit8u address, Bit32u value, unsigned io
               area = BX_MEM_AREA_F0000;
               DEV_mem_set_memory_type(area, 0, (value8 >> 4) & 0x1);
               DEV_mem_set_memory_type(area, 1, (value8 >> 5) & 0x1);
+              BX_INFO(("C200 PAM0: RE=%d, WE=%d", (value8 >> 4) & 0x1, (value8 >> 5) & 0x1));
             } else {
               // PAM1-6: Legacy regions C0000-EFFFF
               area = ((address+i) - 0x81) << 1;
               DEV_mem_set_memory_type(area, 0, (value8 >> 0) & 0x1);
               DEV_mem_set_memory_type(area, 1, (value8 >> 1) & 0x1);
+              BX_INFO(("C200 PAM%d low: area=%d, RE=%d, WE=%d", (address+i) - 0x80, area, (value8 >> 0) & 0x1, (value8 >> 1) & 0x1));
               area++;
               DEV_mem_set_memory_type(area, 0, (value8 >> 4) & 0x1);
               DEV_mem_set_memory_type(area, 1, (value8 >> 5) & 0x1);
+              BX_INFO(("C200 PAM%d high: area=%d, RE=%d, WE=%d", (address+i) - 0x80, area, (value8 >> 4) & 0x1, (value8 >> 5) & 0x1));
             }
-            BX_INFO(("C200 write to PAM register %x (TLB Flush)", address+i));
+            BX_INFO(("C200 write to PAM register %x value 0x%02x (TLB Flush)", address+i, value8));
             bx_pc_system.MemoryMappingChanged();
           }
+        } else {
+          // For non-C200 chipsets, just store the value
+          BX_PCI_THIS pci_conf[address+i] = value8;
         }
         break;
       case 0xb4:
