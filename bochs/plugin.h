@@ -236,6 +236,7 @@ extern "C" {
   bx_devices.pluginPciIdeController->bmdma_start_transfer(a)
 #define DEV_acpi_generate_smi(a) bx_devices.pluginACPIController->generate_smi(a)
 #define DEV_agp_present() (bx_devices.is_agp_present())
+#define DEV_pcie_present() (bx_devices.is_pcie_present())
 
 ///////// Speaker macros
 #define DEV_speaker_beep_on(frequency) bx_devices.pluginSpeaker->beep_on(frequency)

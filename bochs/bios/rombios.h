@@ -269,5 +269,58 @@
 #define PCI_DEVICE_ID_INTEL_82371AB     0x7111
 #define PCI_DEVICE_ID_INTEL_82371AB_3   0x7113
 
+/* Intel 6-series C200 chipset device IDs */
+#define PCI_DEVICE_ID_INTEL_C200_HOST   0x0100  /* Sandy Bridge Desktop Host Bridge */
+#define PCI_DEVICE_ID_INTEL_C200_LPC    0x1C44  /* Q67 Express LPC Controller */
+#define PCI_DEVICE_ID_INTEL_C200_SATA   0x1C02  /* Desktop SATA Controller (IDE mode) */
+#define PCI_DEVICE_ID_INTEL_C200_SMBUS  0x1C22  /* SMBus Controller */
+#define PCI_DEVICE_ID_INTEL_C200_EHCI1  0x1C26  /* USB2 EHCI Controller #1 */
+#define PCI_DEVICE_ID_INTEL_C200_EHCI2  0x1C2D  /* USB2 EHCI Controller #2 */
+#define PCI_DEVICE_ID_INTEL_C200_HDA    0x1C20  /* HD Audio Controller */
+#define PCI_DEVICE_ID_INTEL_C200_THERM  0x1C24  /* Thermal Management Controller */
+
+/* Intel C200 PCIe Root Ports (device IDs 0x1C10-0x1C1E for ports 1-8) */
+#define PCI_DEVICE_ID_INTEL_C200_PCIE1  0x1C10  /* PCIe Root Port #1 */
+#define PCI_DEVICE_ID_INTEL_C200_PCIE2  0x1C12  /* PCIe Root Port #2 */
+#define PCI_DEVICE_ID_INTEL_C200_PCIE3  0x1C14  /* PCIe Root Port #3 */
+#define PCI_DEVICE_ID_INTEL_C200_PCIE4  0x1C16  /* PCIe Root Port #4 */
+#define PCI_DEVICE_ID_INTEL_C200_PCIE5  0x1C18  /* PCIe Root Port #5 */
+#define PCI_DEVICE_ID_INTEL_C200_PCIE6  0x1C1A  /* PCIe Root Port #6 */
+#define PCI_DEVICE_ID_INTEL_C200_PCIE7  0x1C1C  /* PCIe Root Port #7 */
+#define PCI_DEVICE_ID_INTEL_C200_PCIE8  0x1C1E  /* PCIe Root Port #8 */
+
+/* PCI Express capability registers */
+#define PCI_CAP_ID_EXP          0x10    /* PCI Express */
+#define PCI_EXP_FLAGS           0x02    /* Capabilities register */
+#define PCI_EXP_DEVCAP          0x04    /* Device capabilities */
+#define PCI_EXP_DEVCTL          0x08    /* Device Control */
+#define PCI_EXP_DEVSTA          0x0a    /* Device Status */
+#define PCI_EXP_LNKCAP          0x0c    /* Link Capabilities */
+#define PCI_EXP_LNKCTL          0x10    /* Link Control */
+#define PCI_EXP_LNKSTA          0x12    /* Link Status */
+#define PCI_EXP_SLTCAP          0x14    /* Slot Capabilities */
+#define PCI_EXP_SLTCTL          0x18    /* Slot Control */
+#define PCI_EXP_SLTSTA          0x1a    /* Slot Status */
+#define PCI_EXP_RTCTL           0x1c    /* Root Control */
+#define PCI_EXP_RTSTA           0x20    /* Root Status */
+
+/* PCIe device/port types */
+#define PCI_EXP_TYPE_ENDPOINT   0x0     /* Express Endpoint */
+#define PCI_EXP_TYPE_ROOT_PORT  0x4     /* Root Port of PCI Express Root Complex */
+#define PCI_EXP_TYPE_DOWNSTREAM 0x6     /* Downstream Port of PCI Express Switch */
+
+/* C200 PCIe Root Port device numbers (on bus 0) */
+#define C200_PCIE_RP1_DEVFN     0x1c0   /* Device 28, Function 0 */
+#define C200_PCIE_RP2_DEVFN     0x1c1   /* Device 28, Function 1 */
+#define C200_PCIE_RP3_DEVFN     0x1c2   /* Device 28, Function 2 */
+#define C200_PCIE_RP4_DEVFN     0x1c3   /* Device 28, Function 3 */
+#define C200_PCIE_RP5_DEVFN     0x1c4   /* Device 28, Function 4 */
+#define C200_PCIE_RP6_DEVFN     0x1c5   /* Device 28, Function 5 */
+#define C200_PCIE_RP7_DEVFN     0x1c6   /* Device 28, Function 6 */
+#define C200_PCIE_RP8_DEVFN     0x1c7   /* Device 28, Function 7 */
+
+/* Maximum number of PCIe root ports on C200 */
+#define C200_MAX_PCIE_PORTS     8
+
 #define PCI_VENDOR_ID_IBM               0x1014
 #define PCI_VENDOR_ID_APPLE             0x106b

@@ -135,6 +135,7 @@
 #define PCI_FIXED_HOST_BRIDGE 0x12378086  ;; i440FX PCI bridge
 #define PCI_FIXED_HOST_BRIDGE2 0x01228086 ;; i430FX PCI bridge
 #define PCI_FIXED_HOST_BRIDGE3 0x71908086 ;; i440BX PCI bridge
+#define PCI_FIXED_HOST_BRIDGE4 0x01008086 ;; Intel C200 (Sandy Bridge) Host bridge
 
 // #20  is dec 20
 // #$20 is hex 20 = 32
@@ -9758,6 +9759,10 @@ bios32_entry_point:
 #endif
 #ifdef PCI_FIXED_HOST_BRIDGE3
   cmp eax, #PCI_FIXED_HOST_BRIDGE3
+  je  pci_found
+#endif
+#ifdef PCI_FIXED_HOST_BRIDGE4
+  cmp eax, #PCI_FIXED_HOST_BRIDGE4
   je  pci_found
 #endif
   ;; say ok if a device is present

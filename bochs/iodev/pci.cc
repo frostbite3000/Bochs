@@ -22,6 +22,7 @@
 // i430FX - TSC/TDP
 // i440FX - PMC/DBX
 // i440BX - Host bridge
+// Intel 6 Series C200 - Host bridge (Sandy Bridge)
 
 // Define BX_PLUGGABLE in files that can be compiled into plugins.  For
 // platforms that require a special tag on exported symbols, BX_PLUGGABLE
@@ -38,7 +39,7 @@
 
 #define LOG_THIS thePciBridge->
 
-const char csname[3][20] = {"i430FX TSC", "i440FX PMC", "i440BX Host bridge"};
+const char csname[4][24] = {"i430FX TSC", "i440FX PMC", "i440BX Host bridge", "C200 Host bridge"};
 
 bx_pci_bridge_c *thePciBridge = NULL;
 
@@ -59,12 +60,16 @@ bx_pci_bridge_c::bx_pci_bridge_c()
 {
   put("PCI");
   vbridge = NULL;
+  pcie_bridge = NULL;
 }
 
 bx_pci_bridge_c::~bx_pci_bridge_c()
 {
   if (vbridge != NULL) {
     delete vbridge;
+  }
+  if (pcie_bridge != NULL) {
+    delete pcie_bridge;
   }
   SIM->get_bochs_root()->remove("pci_bridge");
   BX_DEBUG(("Exit"));
@@ -112,6 +117,29 @@ void bx_pci_bridge_c::init(void)
     BX_PCI_THIS pci_conf[0xf3] = 0xf8;
     BX_PCI_THIS pci_conf[0xf8] = 0x20;
     BX_PCI_THIS pci_conf[0xf9] = 0x0f;
+  } else if (BX_PCI_THIS chipset == BX_PCI_CHIPSET_I6_C200) {
+    // Intel 6 Series C200 chipset (Sandy Bridge) Host Bridge
+    // Device ID 0x0100 = Sandy Bridge Desktop Host Bridge
+    init_pci_conf(0x8086, 0x0100, 0x09, 0x060000, 0x00, 0);
+    BX_PCI_THIS pci_conf[0x06] = 0x90; // Status: capabilities list, 66MHz capable
+    BX_PCI_THIS pci_conf[0x07] = 0x20; // Status high byte
+    BX_PCI_THIS pci_conf[0x34] = 0xe0; // Capabilities pointer
+    // MCHBAR - Memory Controller Hub Base Address Register
+    BX_PCI_THIS pci_conf[0x48] = 0x01; // MCHBAR enabled
+    // PCIEXBAR - PCI Express Base Address
+    BX_PCI_THIS pci_conf[0x60] = 0x01; // PCIEXBAR enabled
+    // DMIBAR - DMI Base Address
+    BX_PCI_THIS pci_conf[0x68] = 0x01; // DMIBAR enabled
+    // Capability: Power Management
+    BX_PCI_THIS pci_conf[0xe0] = 0x01; // PM capability ID
+    BX_PCI_THIS pci_conf[0xe1] = 0x00; // Next capability (none)
+    BX_PCI_THIS pci_conf[0xe2] = 0x22; // PM capabilities (D0, D3hot)
+    BX_PCI_THIS pci_conf[0xe3] = 0x00;
+    // Initialize PCIe Root Port if PCIe is present
+    if (DEV_pcie_present()) {
+      BX_PCI_THIS pcie_bridge = new bx_pcie_bridge_c();
+      BX_PCI_THIS pcie_bridge->init();
+    }
   } else { // i440FX
     init_pci_conf(0x8086, 0x1237, 0x00, 0x060000, 0x00, 0);
   }
@@ -168,7 +196,14 @@ void bx_pci_bridge_c::init(void)
         BX_PCI_THIS DRBA[i] = 0x20;
       }
     }
-  } else { // i440FX
+  } else if (BX_PCI_THIS chipset == BX_PCI_CHIPSET_I6_C200) {
+    // C200 supports up to 32GB RAM, but we limit to Bochs max
+    // Memory configuration is handled differently in Sandy Bridge
+    // The DRAM registers are in MCHBAR, not PCI config space
+    if (ramsize > 32768) ramsize = 32768; // 32GB max
+    // For C200, we just need to track the memory size
+    // DRBA is not used the same way as older chipsets
+  } else { // i440FX and i440BX
     const Bit8u type[3] = {128, 32, 8};
     if (ramsize > 1024) ramsize = 1024;
     Bit8u drbval = 0;
@@ -188,8 +223,11 @@ void bx_pci_bridge_c::init(void)
       BX_PCI_THIS DRBA[row++] = drbval;
     }
   }
-  for (i = 0; i < 8; i++)
-    BX_PCI_THIS pci_conf[0x60 + i] = BX_PCI_THIS DRBA[i];
+  // DRBA registers are not used for C200 chipset
+  if (BX_PCI_THIS chipset != BX_PCI_CHIPSET_I6_C200) {
+    for (i = 0; i < 8; i++)
+      BX_PCI_THIS pci_conf[0x60 + i] = BX_PCI_THIS DRBA[i];
+  }
   dram_detect = 0;
 
 #if BX_DEBUGGER
@@ -222,6 +260,24 @@ bx_pci_bridge_c::reset(unsigned type)
     if (BX_PCI_THIS vbridge != NULL) {
       BX_PCI_THIS vbridge->reset(type);
     }
+  } else if (BX_PCI_THIS chipset == BX_PCI_CHIPSET_I6_C200) {
+    // Intel 6 Series C200 reset values
+    BX_PCI_THIS pci_conf[0x04] = 0x06; // Command: Memory Space, Bus Master
+    BX_PCI_THIS pci_conf[0x05] = 0x00;
+    BX_PCI_THIS pci_conf[0x06] = 0x90; // Status: Capabilities List, 66MHz
+    BX_PCI_THIS pci_conf[0x07] = 0x20;
+    // MCHBAR
+    BX_PCI_THIS pci_conf[0x48] = 0x01;
+    // PCIEXBAR
+    BX_PCI_THIS pci_conf[0x60] = 0x01;
+    // DMIBAR
+    BX_PCI_THIS pci_conf[0x68] = 0x01;
+    // Power Management capability
+    BX_PCI_THIS pci_conf[0xe4] = 0x00; // PM Control/Status
+    // Reset PCIe bridge if present
+    if (BX_PCI_THIS pcie_bridge != NULL) {
+      BX_PCI_THIS pcie_bridge->reset(type);
+    }
   } else { // i440FX
     BX_PCI_THIS pci_conf[0x06] = 0x80;
     BX_PCI_THIS pci_conf[0x51] = 0x01;
@@ -232,8 +288,11 @@ bx_pci_bridge_c::reset(unsigned type)
     BX_PCI_THIS pci_conf[0xbb] = 0x00;
     BX_PCI_THIS gart_base = 0;
   }
-  for (i=0x59; i<0x60; i++)
-    BX_PCI_THIS pci_conf[i] = 0x00;
+  // PAM registers are not at 0x59-0x5F for C200, skip for that chipset
+  if (BX_PCI_THIS chipset != BX_PCI_CHIPSET_I6_C200) {
+    for (i=0x59; i<0x60; i++)
+      BX_PCI_THIS pci_conf[i] = 0x00;
+  }
   for (i = 0; i <= BX_MEM_AREA_F0000; i++) {
     DEV_mem_set_memory_type(i, 0, 0);
     DEV_mem_set_memory_type(i, 1, 0);
@@ -251,6 +310,9 @@ void bx_pci_bridge_c::register_state(void)
   if (BX_PCI_THIS vbridge != NULL) {
     BX_PCI_THIS vbridge->register_state();
   }
+  if (BX_PCI_THIS pcie_bridge != NULL) {
+    BX_PCI_THIS pcie_bridge->register_state();
+  }
 }
 
 void bx_pci_bridge_c::after_restore_state(void)
@@ -258,6 +320,9 @@ void bx_pci_bridge_c::after_restore_state(void)
   BX_PCI_THIS smram_control(BX_PCI_THIS pci_conf[0x72]);
   if (BX_PCI_THIS vbridge != NULL) {
     BX_PCI_THIS vbridge->after_restore_state();
+  }
+  if (BX_PCI_THIS pcie_bridge != NULL) {
+    BX_PCI_THIS pcie_bridge->after_restore_state();
   }
 }
 
@@ -332,6 +397,10 @@ void bx_pci_bridge_c::pci_write_handler(Bit8u address, Bit32u value, unsigned io
       case 0x5D:
       case 0x5E:
       case 0x5F:
+        // PAM registers - C200 uses different mechanism (in MCHBAR)
+        if (BX_PCI_THIS chipset == BX_PCI_CHIPSET_I6_C200) {
+          break;
+        }
         if (value8 != oldval) {
           BX_PCI_THIS pci_conf[address+i] = value8;
           if ((address+i) == 0x59) {
@@ -566,16 +635,24 @@ void bx_pci_bridge_c::debug_dump(int argc, char **argv)
     dbg_printf("i430FX TSC/TDP");
   } else if (BX_PCI_THIS chipset == BX_PCI_CHIPSET_I440BX) {
     dbg_printf("i440BX Host bridge");
+  } else if (BX_PCI_THIS chipset == BX_PCI_CHIPSET_I6_C200) {
+    dbg_printf("Intel 6 Series C200 Host bridge");
   } else {
     dbg_printf("i440FX PMC/DBX");
   }
   dbg_printf("\n\nconfAddr = 0x%08x\n\n", DEV_pci_get_confAddr());
 
   if (argc == 0) {
-    for (i = 0x59; i < 0x60; i++) {
-      dbg_printf("PAM reg 0x%02x = 0x%02x\n", i, BX_PCI_THIS pci_conf[i]);
+    if (BX_PCI_THIS chipset != BX_PCI_CHIPSET_I6_C200) {
+      for (i = 0x59; i < 0x60; i++) {
+        dbg_printf("PAM reg 0x%02x = 0x%02x\n", i, BX_PCI_THIS pci_conf[i]);
+      }
+      dbg_printf("SMRAM control = 0x%02x\n", BX_PCI_THIS pci_conf[0x72]);
+    } else {
+      dbg_printf("MCHBAR enabled = %d\n", (BX_PCI_THIS pci_conf[0x48] & 0x01));
+      dbg_printf("PCIEXBAR enabled = %d\n", (BX_PCI_THIS pci_conf[0x60] & 0x01));
+      dbg_printf("DMIBAR enabled = %d\n", (BX_PCI_THIS pci_conf[0x68] & 0x01));
     }
-    dbg_printf("SMRAM control = 0x%02x\n", BX_PCI_THIS pci_conf[0x72]);
     dbg_printf("\nSupported options:\n");
     dbg_printf("info device 'pci' 'dump=full' - show PCI config space\n");
   } else {
@@ -700,6 +777,266 @@ void bx_pci_vbridge_c::pci_write_handler(Bit8u address, Bit32u value, unsigned i
         value8 = oldval;
     }
     pci_conf[address+i] = value8;
+  }
+}
+
+// Intel C200 PCIe Root Port (PCI Express bridge)
+// Similar to AGP bridge but for PCI Express
+
+bx_pcie_bridge_c::bx_pcie_bridge_c()
+{
+  put("PCIe");
+  slot_nr = 0;
+  root_port_nr = 1;
+}
+
+bx_pcie_bridge_c::~bx_pcie_bridge_c()
+{
+  SIM->get_bochs_root()->remove("pcie_bridge");
+  BX_DEBUG(("Exit"));
+}
+
+void bx_pcie_bridge_c::init(void)
+{
+  // Intel C200 PCH PCIe Root Port 1 at D28:F0
+  // Device ID 0x1C10 = C200 PCIe Root Port 1
+  Bit8u devfunc = BX_PCI_DEVICE(28, 0);
+  DEV_register_pci_handlers(this, &devfunc, BX_PLUGIN_PCI, "C200 PCIe Root Port");
+
+  // PCI-to-PCI Bridge class (0x060400), header type 1
+  init_pci_conf(0x8086, 0x1c10, 0xb5, 0x060400, 0x01, 0);
+
+  // Status register: Capabilities List, 66MHz capable
+  pci_conf[0x06] = 0x10;
+  pci_conf[0x07] = 0x00;
+
+  // Capabilities pointer
+  pci_conf[0x34] = 0x40;
+
+  // Secondary status
+  pci_conf[0x1e] = 0x00;
+  pci_conf[0x1f] = 0x00;
+
+  // PCI Express Capability (offset 0x40)
+  pci_conf[0x40] = 0x10; // PCI Express Capability ID
+  pci_conf[0x41] = 0x80; // Next capability pointer (MSI at 0x80)
+  pci_conf[0x42] = 0x42; // PCIe Capability version 2, Root Port type
+  pci_conf[0x43] = 0x00;
+
+  // Device Capabilities
+  pci_conf[0x44] = 0x01; // Max payload 128 bytes
+  pci_conf[0x45] = 0x00;
+  pci_conf[0x46] = 0x00;
+  pci_conf[0x47] = 0x00;
+
+  // Device Control
+  pci_conf[0x48] = 0x00;
+  pci_conf[0x49] = 0x00;
+
+  // Device Status
+  pci_conf[0x4a] = 0x00;
+  pci_conf[0x4b] = 0x00;
+
+  // Link Capabilities
+  // Max Link Speed 5.0 GT/s (Gen2), Max Link Width x1
+  pci_conf[0x4c] = (PCIE_LNKCAP_SLS_5_0GT) | (PCIE_LNKCAP_MLW_X1 << 4);
+  pci_conf[0x4d] = 0x00;
+  pci_conf[0x4e] = 0x41; // L0s exit latency, L1 exit latency
+  pci_conf[0x4f] = 0x00; // Port number
+
+  // Link Control
+  pci_conf[0x50] = 0x00;
+  pci_conf[0x51] = 0x00;
+
+  // Link Status - Link active, 5.0 GT/s, x1
+  pci_conf[0x52] = (PCIE_LNKCAP_SLS_5_0GT) | (PCIE_LNKCAP_MLW_X1 << 4);
+  pci_conf[0x53] = 0x10; // Link active
+
+  // Slot Capabilities
+  pci_conf[0x54] = 0x00;
+  pci_conf[0x55] = 0x00;
+  pci_conf[0x56] = 0x00;
+  pci_conf[0x57] = 0x00;
+
+  // Slot Control
+  pci_conf[0x58] = 0x00;
+  pci_conf[0x59] = 0x00;
+
+  // Slot Status
+  pci_conf[0x5a] = 0x00;
+  pci_conf[0x5b] = 0x00;
+
+  // Root Control
+  pci_conf[0x5c] = 0x00;
+  pci_conf[0x5d] = 0x00;
+
+  // Root Capabilities
+  pci_conf[0x5e] = 0x00;
+  pci_conf[0x5f] = 0x00;
+
+  // Root Status
+  pci_conf[0x60] = 0x00;
+  pci_conf[0x61] = 0x00;
+  pci_conf[0x62] = 0x00;
+  pci_conf[0x63] = 0x00;
+
+  // MSI Capability (offset 0x80)
+  pci_conf[0x80] = 0x05; // MSI Capability ID
+  pci_conf[0x81] = 0x90; // Next capability pointer (Power Management at 0x90)
+  pci_conf[0x82] = 0x00; // Message Control
+  pci_conf[0x83] = 0x00;
+
+  // Power Management Capability (offset 0x90)
+  pci_conf[0x90] = 0x01; // PM Capability ID
+  pci_conf[0x91] = 0x00; // No next capability
+  pci_conf[0x92] = 0x03; // PM Capabilities (D0, D3hot)
+  pci_conf[0x93] = 0x00;
+  pci_conf[0x94] = 0x00; // PM Control/Status
+  pci_conf[0x95] = 0x00;
+
+  BX_INFO(("C200 PCIe Root Port initialized"));
+}
+
+void bx_pcie_bridge_c::reset(unsigned type)
+{
+  // Reset to default values
+  pci_conf[0x04] = 0x00; // Command
+  pci_conf[0x05] = 0x00;
+  pci_conf[0x06] = 0x10; // Status
+  pci_conf[0x07] = 0x00;
+
+  // Bridge control registers
+  pci_conf[0x18] = 0x00; // Primary bus number
+  pci_conf[0x19] = 0x00; // Secondary bus number
+  pci_conf[0x1a] = 0x00; // Subordinate bus number
+  pci_conf[0x1b] = 0x00; // Secondary latency timer
+
+  // I/O base and limit
+  pci_conf[0x1c] = 0xf0;
+  pci_conf[0x1d] = 0x00;
+
+  // Secondary status
+  pci_conf[0x1e] = 0x00;
+  pci_conf[0x1f] = 0x00;
+
+  // Memory base and limit
+  pci_conf[0x20] = 0xf0;
+  pci_conf[0x21] = 0xff;
+  pci_conf[0x22] = 0x00;
+  pci_conf[0x23] = 0x00;
+
+  // Prefetchable memory base and limit
+  pci_conf[0x24] = 0xf1;
+  pci_conf[0x25] = 0xff;
+  pci_conf[0x26] = 0x01;
+  pci_conf[0x27] = 0x00;
+
+  // Bridge control
+  pci_conf[0x3e] = 0x00;
+  pci_conf[0x3f] = 0x00;
+
+  // Link Status - Link active, 5.0 GT/s, x1
+  pci_conf[0x52] = (PCIE_LNKCAP_SLS_5_0GT) | (PCIE_LNKCAP_MLW_X1 << 4);
+  pci_conf[0x53] = 0x10; // Link active
+}
+
+void bx_pcie_bridge_c::register_state(void)
+{
+  bx_list_c *list = new bx_list_c(SIM->get_bochs_root(), "pcie_bridge", "PCIe Bridge State");
+  register_pci_state(list);
+}
+
+void bx_pcie_bridge_c::after_restore_state(void)
+{
+  // TODO: Restore any PCIe-specific state
+}
+
+// PCIe configuration space write callback handler
+void bx_pcie_bridge_c::pci_write_handler(Bit8u address, Bit32u value, unsigned io_len)
+{
+  BX_DEBUG_PCI_WRITE(address, value, io_len);
+
+  for (unsigned i = 0; i < io_len; i++) {
+    Bit8u value8 = (value >> (i * 8)) & 0xff;
+    Bit8u oldval = pci_conf[address + i];
+
+    switch (address + i) {
+      case 0x04: // Command
+        value8 &= 0x47; // I/O, Memory, Bus Master, SERR#
+        break;
+      case 0x05:
+        value8 &= 0x01;
+        break;
+      case 0x06: // Status - write 1 to clear
+      case 0x07:
+        value8 = oldval & ~value8;
+        break;
+      case 0x0d: // Latency Timer
+      case 0x1b: // Secondary Latency Timer
+        value8 &= 0xf8;
+        break;
+      case 0x19: // Secondary Bus Number
+      case 0x1a: // Subordinate Bus Number
+        // These are read-write
+        break;
+      case 0x1c: // I/O Base
+      case 0x1d: // I/O Limit
+        value8 &= 0xf0;
+        break;
+      case 0x1e: // Secondary Status - write 1 to clear
+      case 0x1f:
+        value8 = oldval & ~value8;
+        break;
+      case 0x20: // Memory Base
+      case 0x22: // Memory Limit
+      case 0x24: // Prefetchable Memory Base
+      case 0x26: // Prefetchable Memory Limit
+        value8 &= 0xf0;
+        break;
+      case 0x3e: // Bridge Control
+        value8 &= 0x4b; // Parity, SERR#, ISA, VGA, Master Abort
+        break;
+      case 0x48: // Device Control
+      case 0x49:
+        // Device control is read-write
+        break;
+      case 0x4a: // Device Status - write 1 to clear
+      case 0x4b:
+        value8 = oldval & ~value8;
+        break;
+      case 0x50: // Link Control
+      case 0x51:
+        // Link control is read-write
+        break;
+      case 0x52: // Link Status
+      case 0x53:
+        // Link status is mostly read-only
+        value8 = oldval;
+        break;
+      case 0x5c: // Root Control
+      case 0x5d:
+        // Root control is read-write
+        break;
+      case 0x60: // Root Status - write 1 to clear
+      case 0x61:
+      case 0x62:
+      case 0x63:
+        value8 = oldval & ~value8;
+        break;
+      case 0x18: // Primary Bus Number - read only
+      default:
+        if (address + i >= 0x40 && address + i < 0x100) {
+          // PCIe capability registers - handle based on type
+          if ((address + i >= 0x44 && address + i < 0x4a) ||
+              (address + i >= 0x4c && address + i < 0x54)) {
+            // Read-only capability registers
+            value8 = oldval;
+          }
+        } else {
+          value8 = oldval;
+        }
+    }
+    pci_conf[address + i] = value8;
   }
 }
 #endif /* BX_SUPPORT_PCI */

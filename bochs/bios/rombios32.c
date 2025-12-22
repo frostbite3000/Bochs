@@ -406,6 +406,7 @@ uint8_t bios_uuid[16];
 unsigned long ebda_cur_addr;
 #endif
 int chipset_i440bx;
+int chipset_c200;
 int acpi_enabled;
 uint32_t pm_io_base, smb_io_base;
 int pm_sci_int;
@@ -620,11 +621,17 @@ typedef struct PCIDevice {
 
 static uint32_t pci_bios_io_addr;
 static uint32_t agp_bios_io_addr;
+static uint32_t pcie_bios_io_addr;
+static uint32_t pcie_bios_mem_addr;
 static uint32_t pci_bios_mem_addr;
 static uint32_t pci_bios_rom_start;
 /* host irqs corresponding to PCI irqs A-D */
 static uint8_t pci_irqs[4] = { 11, 9, 11, 9 };
 static PCIDevice i440_pcidev = {-1, -1};
+
+/* PCIe root port tracking for C200 chipset */
+static uint8_t pcie_bus_num = 1;  /* Next available PCIe bus number */
+static uint8_t pcie_port_count = 0;  /* Number of active PCIe ports */
 
 static void pci_config_writel(PCIDevice *d, uint32_t addr, uint32_t val)
 {
@@ -683,7 +690,19 @@ static void pci_set_io_region_addr(PCIDevice *d, int region_num, uint32_t addr)
 static int pci_slot_get_pirq(PCIDevice *pci_dev, int irq_num)
 {
     int slot_addend;
-    if (chipset_i440bx) {
+    if (chipset_c200) {
+      /* C200 uses device 31 for LPC, integrated devices at various slots */
+      int devnum = pci_dev->devfn >> 3;
+      if (pci_dev->bus > 0) {
+        /* PCIe device on secondary bus - use bus number for IRQ swizzling */
+        slot_addend = pci_dev->bus - 1;
+      } else if (devnum >= 0x1c) {
+        /* PCIe root ports and integrated devices on bus 0 */
+        slot_addend = devnum - 0x1c;
+      } else {
+        slot_addend = devnum - 8;
+      }
+    } else if (chipset_i440bx) {
       if ((pci_dev->devfn >> 3) == 0x07) {
         slot_addend = (pci_dev->devfn >> 3) - 7;
       } else {
@@ -741,15 +760,48 @@ static void bios_shadow_init(PCIDevice *d)
     i440_pcidev = *d;
 }
 
+/* Intel C200 chipset uses PAM registers at different offsets (0x80-0x86)
+   PAM0 (0x80): 0xF0000-0xFFFFF (BIOS area)
+   PAM1-6 (0x81-0x86): Various legacy regions */
+static void bios_shadow_init_c200(PCIDevice *d)
+{
+    int v;
+
+    if (bios_table_cur_addr == 0)
+        return;
+
+    /* C200 PAM0 register at offset 0x80 controls F0000-FFFFF
+       Bits [5:4] = Read Enable for high 64KB
+       Bits [1:0] = Write Enable for high 64KB
+       0x30 = Read/Write enable */
+    v = pci_config_readb(d, 0x80);
+    v &= 0xcf;
+    pci_config_writeb(d, 0x80, v);
+    memcpy((void *)BIOS_TMP_STORAGE, (void *)0x000f0000, 0x10000);
+    v |= 0x30;
+    pci_config_writeb(d, 0x80, v);
+    memcpy((void *)0x000f0000, (void *)BIOS_TMP_STORAGE, 0x10000);
+
+    i440_pcidev = *d;
+    BX_INFO("C200 BIOS shadow RAM enabled\n");
+}
+
 static void bios_lock_shadow_ram(void)
 {
     PCIDevice *d = &i440_pcidev;
     int v;
 
     wbinvd();
-    v = pci_config_readb(d, 0x59);
-    v = (v & 0x0f) | (0x10);
-    pci_config_writeb(d, 0x59, v);
+    if (chipset_c200) {
+        /* C200 uses PAM0 at offset 0x80 */
+        v = pci_config_readb(d, 0x80);
+        v = (v & 0x0f) | (0x10);  /* Read-only */
+        pci_config_writeb(d, 0x80, v);
+    } else {
+        v = pci_config_readb(d, 0x59);
+        v = (v & 0x0f) | (0x10);
+        pci_config_writeb(d, 0x59, v);
+    }
 }
 
 static uint32_t pci_get_agp_memory(PCIDevice *d, uint32_t type)
@@ -831,6 +883,151 @@ static uint16_t pci_get_agp_iobase(PCIDevice *d)
         }
     }
     return (saddr | (eaddr << 8));
+}
+
+/* PCIe memory window calculation for devices behind a PCIe root port
+   Similar to AGP but handles PCIe-specific requirements */
+static uint32_t pci_get_pcie_memory(PCIDevice *d, uint32_t type)
+{
+    uint32_t addr, val, size, align, mask;
+    uint16_t cmd, saddr = 0xffff, eaddr = 0;
+    int i, j, ofs;
+
+    /* disable i/o and memory access */
+    cmd = pci_config_readw(d, PCI_COMMAND);
+    cmd &= 0xfffc;
+    pci_config_writew(d, PCI_COMMAND, cmd);
+    /* default memory mappings - start at PCIe memory region */
+    addr = pcie_bios_mem_addr;
+    for(j = 0; j < 2; j++) {
+        mask = (j == 1) ? PCI_ADDRESS_SPACE_MEM_PREFETCH : 0;
+        for(i = 0; i < PCI_NUM_REGIONS; i++) {
+            if (i == PCI_ROM_SLOT) {
+                ofs = PCI_ROM_ADDRESS;
+                pci_config_writel(d, ofs, 0xfffffffe);
+            } else {
+                ofs = PCI_BASE_ADDRESS_0 + i * 4;
+                pci_config_writel(d, ofs, 0xffffffff);
+            }
+            val = pci_config_readl(d, ofs);
+            if ((val != 0) && !(val & PCI_ADDRESS_SPACE_IO) &&
+                ((val & PCI_ADDRESS_SPACE_MEM_PREFETCH) == mask)) {
+                size = (~(val & ~0xf)) + 1;
+                align = 0x100000;  /* PCIe requires 1MB alignment for memory windows */
+                addr = (addr + size - 1) & ~(size - 1);
+                if ((val & PCI_ADDRESS_SPACE_MEM_PREFETCH) == type) {
+                    if (saddr == 0xffff) {
+                        saddr = (uint16_t)(addr >> 16);
+                    }
+                    eaddr = (uint16_t)((addr + size - 1) >> 16);
+                }
+                if (size < align) {
+                    addr += align;
+                } else {
+                    addr += size;
+                }
+            }
+        }
+    }
+    /* Update PCIe memory address for next port */
+    pcie_bios_mem_addr = addr;
+    return (saddr | (eaddr << 16));
+}
+
+/* PCIe I/O window calculation for devices behind a PCIe root port */
+static uint16_t pci_get_pcie_iobase(PCIDevice *d)
+{
+    uint32_t val;
+    uint16_t addr, align, cmd, size;
+    uint8_t saddr = 0xf0, eaddr = 0;
+    int i, ofs;
+
+    /* disable i/o and memory access */
+    cmd = pci_config_readw(d, PCI_COMMAND);
+    cmd &= 0xfffc;
+    pci_config_writew(d, PCI_COMMAND, cmd);
+    /* default I/O mappings - start at PCIe I/O region */
+    addr = (uint16_t)pcie_bios_io_addr;
+    for(i = 0; i < PCI_ROM_SLOT; i++) {
+        ofs = PCI_BASE_ADDRESS_0 + i * 4;
+        pci_config_writel(d, ofs, 0xffffffff);
+        val = pci_config_readl(d, ofs);
+        if ((val != 0) && (val & PCI_ADDRESS_SPACE_IO)) {
+            val &= 0xffff;
+            size = (~(val & ~0xf)) + 1;
+            align = 0x1000;  /* PCIe I/O windows are 4KB aligned */
+            addr = (addr + size - 1) & ~(size - 1);
+            if (saddr == 0xf0) {
+                saddr = (uint8_t)(addr >> 8);
+            }
+            eaddr = (uint8_t)((addr + size - 1) >> 8);
+            if (size < align) {
+                addr += align;
+            } else {
+                addr += size;
+            }
+        }
+    }
+    /* Update PCIe I/O address for next port */
+    pcie_bios_io_addr = addr;
+    return (saddr | (eaddr << 8));
+}
+
+/* Check if a device ID is a C200 PCIe Root Port */
+static int is_c200_pcie_root_port(uint16_t device_id)
+{
+    return (device_id >= PCI_DEVICE_ID_INTEL_C200_PCIE1 &&
+            device_id <= PCI_DEVICE_ID_INTEL_C200_PCIE8);
+}
+
+/* Initialize a C200 PCIe Root Port */
+static void pcie_root_port_init(PCIDevice *d, int port_num)
+{
+    PCIDevice pcie_dev;
+    uint8_t secondary_bus;
+    uint16_t io_base, mem_base;
+    uint32_t mem_window;
+
+    /* Assign secondary bus number */
+    secondary_bus = pcie_bus_num++;
+
+    /* Configure the root port as a PCI-to-PCI bridge */
+    pci_config_writew(d, 0x04, 0x0107);  /* Enable I/O, Memory, Bus Master */
+    pci_config_writeb(d, 0x0d, 0x40);    /* Latency timer */
+
+    /* Set primary, secondary, and subordinate bus numbers */
+    pci_config_writeb(d, 0x18, 0x00);    /* Primary bus = 0 */
+    pci_config_writeb(d, 0x19, secondary_bus);  /* Secondary bus */
+    pci_config_writeb(d, 0x1a, secondary_bus);  /* Subordinate bus (may be updated later) */
+    pci_config_writeb(d, 0x1b, 0x40);    /* Secondary latency timer */
+
+    /* Check if there's a device on this PCIe port */
+    pcie_dev.bus = secondary_bus;
+    pcie_dev.devfn = 0;  /* PCIe devices are always at device 0 */
+
+    if (pci_config_readw(&pcie_dev, 0x00) == 0xffff) {
+        /* No device present - disable the port's windows */
+        pci_config_writeb(d, 0x1c, 0xf0);  /* I/O base */
+        pci_config_writeb(d, 0x1d, 0x00);  /* I/O limit */
+        pci_config_writel(d, 0x20, 0x0000ffff);  /* Memory base/limit (disabled) */
+        pci_config_writel(d, 0x24, 0x0000ffff);  /* Prefetchable memory (disabled) */
+        pci_config_writeb(d, 0x3e, 0x00);  /* Bridge control */
+        BX_INFO("PCIe Root Port %d (bus %d): no device\n", port_num, secondary_bus);
+    } else {
+        /* Device present - configure windows */
+        io_base = pci_get_pcie_iobase(&pcie_dev);
+        mem_window = pci_get_pcie_memory(&pcie_dev, 0);
+
+        pci_config_writeb(d, 0x1c, (uint8_t)(io_base & 0xff));  /* I/O base */
+        pci_config_writeb(d, 0x1d, (uint8_t)(io_base >> 8));    /* I/O limit */
+        pci_config_writel(d, 0x20, mem_window);  /* Memory base/limit */
+        pci_config_writel(d, 0x24, pci_get_pcie_memory(&pcie_dev, PCI_ADDRESS_SPACE_MEM_PREFETCH));
+        pci_config_writeb(d, 0x3e, 0x08);  /* Bridge control: enable SERR */
+
+        pcie_port_count++;
+        BX_INFO("PCIe Root Port %d (bus %d): device found, IO=%04x MEM=%08x\n",
+                port_num, secondary_bus, io_base, mem_window);
+    }
 }
 
 static int acpi_checksum(const uint8_t *data, int len);
@@ -936,6 +1133,73 @@ static void pci_bios_init_bridges(PCIDevice *d)
           pci_config_writel(d, 0x24, pci_get_agp_memory(agpdev, PCI_ADDRESS_SPACE_MEM_PREFETCH));
           pci_config_writeb(d, 0x3e, 0x88);
         }
+      } else if (device_id == PCI_DEVICE_ID_INTEL_C200_HOST) {
+        /* Intel C200 (Sandy Bridge) Host Bridge */
+        bios_shadow_init_c200(d);
+        chipset_c200 = 1;
+        BX_INFO("Intel C200 Host Bridge init\n");
+      } else if (device_id == PCI_DEVICE_ID_INTEL_C200_LPC) {
+        /* Intel C200 PCH LPC Controller - IRQ routing */
+        int i, irq;
+        uint8_t elcr[2];
+
+        elcr[0] = 0x00;
+        elcr[1] = 0x00;
+        for(i = 0; i < 4; i++) {
+            irq = pci_irqs[i];
+            /* set to trigger level */
+            elcr[irq >> 3] |= (1 << (irq & 7));
+            /* activate irq remapping in C200 PCH (PIRQ routing registers at 0x60-0x63) */
+            pci_config_writeb(d, 0x60 + i, irq);
+        }
+        /* Also set PIRQE-H routing (0x68-0x6B) */
+        for(i = 0; i < 4; i++) {
+            irq = pci_irqs[i];
+            pci_config_writeb(d, 0x68 + i, irq);
+        }
+        outb(0x4d0, elcr[0]);
+        outb(0x4d1, elcr[1]);
+        BX_INFO("C200 PCH LPC init: elcr=%02x %02x\n",
+                elcr[0], elcr[1]);
+
+        /* Modify PIR table for C200 chipset */
+        addr = find_pir_table();
+        pir = (uint8_t *)addr;
+        BX_INFO("Modify pir_table for C200 at: 0x%08lx\n", addr);
+        writeb(pir + 0x09, 0xf8); // IRQ router DevFunc (device 31, function 0)
+        writeb(pir + 0x1f, 0x00); // Checksum set later
+        writeb(pir + 0x21, 0xf8); // 1st entry: LPC
+        writeb(pir + 0x31, 0x40); // 2nd entry: 1st slot
+        writeb(pir + 0x32, 0x60); // INTA -> PIRQA
+        writeb(pir + 0x35, 0x61); // INTB -> PIRQB
+        writeb(pir + 0x38, 0x62); // INTC -> PIRQC
+        writeb(pir + 0x3b, 0x63); // INTD -> PIRQD
+        writeb(pir + 0x41, 0x48); // 3rd entry: 2nd slot
+        writeb(pir + 0x42, 0x61); // INTA -> PIRQB
+        writeb(pir + 0x45, 0x62); // INTB -> PIRQC
+        writeb(pir + 0x48, 0x63); // INTC -> PIRQD
+        writeb(pir + 0x4b, 0x60); // INTD -> PIRQA
+        writeb(pir + 0x51, 0x50); // 4th entry: 3rd slot
+        writeb(pir + 0x52, 0x62); // INTA -> PIRQC
+        writeb(pir + 0x55, 0x63); // INTB -> PIRQD
+        writeb(pir + 0x58, 0x60); // INTC -> PIRQA
+        writeb(pir + 0x5b, 0x61); // INTD -> PIRQB
+        writeb(pir + 0x61, 0x58); // 5th entry: 4th slot
+        writeb(pir + 0x62, 0x63); // INTA -> PIRQD
+        writeb(pir + 0x65, 0x60); // INTB -> PIRQA
+        writeb(pir + 0x68, 0x61); // INTC -> PIRQB
+        writeb(pir + 0x6b, 0x62); // INTD -> PIRQC
+        writeb(pir + 0x71, 0x60); // 6th entry: 5th slot (no AGP on C200)
+        writeb(pir + 0x72, 0x60); // INTA -> PIRQA
+        writeb(pir + 0x75, 0x61); // INTB -> PIRQB
+        writeb(pir + 0x78, 0x62); // INTC -> PIRQC
+        writeb(pir + 0x7b, 0x63); // INTD -> PIRQD
+        cksum = acpi_checksum(pir, 0x80);
+        writeb(pir + 0x1f, cksum); // Checksum
+      } else if (is_c200_pcie_root_port(device_id)) {
+        /* Intel C200 PCIe Root Port */
+        int port_num = (device_id - PCI_DEVICE_ID_INTEL_C200_PCIE1) / 2 + 1;
+        pcie_root_port_init(d, port_num);
       }
     }
 }
@@ -948,42 +1212,81 @@ static void smm_init(PCIDevice *d)
 {
     uint32_t value;
 
-    /* check if SMM init is already done */
-    value = pci_config_readl(d, 0x58);
-    if ((value & (1 << 25)) == 0) {
+    if (chipset_c200) {
+        /* Intel C200 chipset SMM initialization
+           C200 uses different SMRAM control mechanisms via the MCH (Host Bridge)
+           SMRAMC register is at offset 0x88 in the Host Bridge */
+        value = pci_config_readl(&i440_pcidev, 0x88);
+        if ((value & (1 << 4)) == 0) {  /* Check if SMM not already enabled */
 
-        /* enable the SMM memory window */
-        pci_config_writeb(&i440_pcidev, 0x72, 0x02 | 0x48);
+            /* Enable D_OPEN bit to allow access to SMRAM */
+            pci_config_writeb(&i440_pcidev, 0x88, 0x48);
 
-        /* save original memory content */
-        memcpy((void *)0xa8000, (void *)0x38000, 0x8000);
+            /* save original memory content */
+            memcpy((void *)0xa8000, (void *)0x38000, 0x8000);
 
-        /* copy the SMM relocation code */
-        memcpy((void *)0x38000, &smm_relocation_start,
-               &smm_relocation_end - &smm_relocation_start);
+            /* copy the SMM relocation code */
+            memcpy((void *)0x38000, &smm_relocation_start,
+                   &smm_relocation_end - &smm_relocation_start);
 
-        /* enable SMI generation when writing to the APMC register */
-        pci_config_writel(d, 0x58, value | (1 << 25));
+            /* Enable SMI generation - C200 uses GEN_PMCON register */
+            /* For now, use similar approach to PIIX4 */
+            outb(0xb3, 0x01);
+            outb(0xb2, 0x00);
 
-        /* init APM status port */
-        outb(0xb3, 0x01);
+            /* wait until SMM code executed */
+            while (inb(0xb3) != 0x00);
 
-        /* raise an SMI interrupt */
-        outb(0xb2, 0x00);
+            /* restore original memory content */
+            memcpy((void *)0x38000, (void *)0xa8000, 0x8000);
 
-        /* wait until SMM code executed */
-        while (inb(0xb3) != 0x00);
+            /* copy the SMM code */
+            memcpy((void *)0xa8000, &smm_code_start,
+                   &smm_code_end - &smm_code_start);
+            wbinvd();
 
-        /* restore original memory content */
-        memcpy((void *)0x38000, (void *)0xa8000, 0x8000);
+            /* Close SMRAM and enable normal SMM */
+            pci_config_writeb(&i440_pcidev, 0x88, 0x08);
+        }
+    } else {
+        /* i440FX/i440BX chipset SMM initialization */
+        /* check if SMM init is already done */
+        value = pci_config_readl(d, 0x58);
+        if ((value & (1 << 25)) == 0) {
 
-        /* copy the SMM code */
-        memcpy((void *)0xa8000, &smm_code_start,
-               &smm_code_end - &smm_code_start);
-        wbinvd();
+            /* enable the SMM memory window */
+            pci_config_writeb(&i440_pcidev, 0x72, 0x02 | 0x48);
 
-        /* close the SMM memory window and enable normal SMM */
-        pci_config_writeb(&i440_pcidev, 0x72, 0x02 | 0x08);
+            /* save original memory content */
+            memcpy((void *)0xa8000, (void *)0x38000, 0x8000);
+
+            /* copy the SMM relocation code */
+            memcpy((void *)0x38000, &smm_relocation_start,
+                   &smm_relocation_end - &smm_relocation_start);
+
+            /* enable SMI generation when writing to the APMC register */
+            pci_config_writel(d, 0x58, value | (1 << 25));
+
+            /* init APM status port */
+            outb(0xb3, 0x01);
+
+            /* raise an SMI interrupt */
+            outb(0xb2, 0x00);
+
+            /* wait until SMM code executed */
+            while (inb(0xb3) != 0x00);
+
+            /* restore original memory content */
+            memcpy((void *)0x38000, (void *)0xa8000, 0x8000);
+
+            /* copy the SMM code */
+            memcpy((void *)0xa8000, &smm_code_start,
+                   &smm_code_end - &smm_code_start);
+            wbinvd();
+
+            /* close the SMM memory window and enable normal SMM */
+            pci_config_writeb(&i440_pcidev, 0x72, 0x02 | 0x08);
+        }
     }
 }
 #endif
@@ -995,6 +1298,22 @@ static void piix4_pm_enable(PCIDevice *d)
         pci_config_writeb(d, 0x80, 0x01); /* enable PM io space */
         pci_config_writel(d, 0x90, SMB_IO_BASE | 1);
         pci_config_writeb(d, 0xd2, 0x09); /* enable SMBus io space */
+#ifdef BX_USE_SMM
+        smm_init(d);
+#endif
+}
+
+static void c200_smbus_enable(PCIDevice *d)
+{
+        /* Intel C200 SMBus Controller
+           SMBus Base Address is at offset 0x20 (BAR0)
+           Host Configuration is at offset 0x40 */
+        pci_config_writel(d, 0x20, SMB_IO_BASE | 1);  /* SMBus Base Address */
+        pci_config_writeb(d, 0x40, 0x01);  /* Enable SMBus Host Controller */
+        /* Enable I/O space access */
+        uint16_t cmd = pci_config_readw(d, PCI_COMMAND);
+        cmd |= PCI_COMMAND_IO;
+        pci_config_writew(d, PCI_COMMAND, cmd);
 #ifdef BX_USE_SMM
         smm_init(d);
 #endif
@@ -1126,15 +1445,26 @@ static void pci_bios_init_device(PCIDevice *d)
                         size = (~(val & ~0xf)) + 1;
                         if (val & PCI_ADDRESS_SPACE_IO) {
                             if (d->bus == 1) {
+                                /* AGP bus (i440BX) */
                                 paddr = &agp_bios_io_addr;
+                                align = 0x1000;
+                            } else if (d->bus > 1 && chipset_c200) {
+                                /* PCIe bus (C200) */
+                                paddr = &pcie_bios_io_addr;
                                 align = 0x1000;
                             } else {
                                 paddr = &pci_bios_io_addr;
                                 align = 0x10;
                             }
                         } else {
-                            paddr = &pci_bios_mem_addr;
-                            align = 0x10000;
+                            if (d->bus > 1 && chipset_c200) {
+                                /* PCIe memory (C200) */
+                                paddr = &pcie_bios_mem_addr;
+                                align = 0x100000;  /* 1MB alignment for PCIe */
+                            } else {
+                                paddr = &pci_bios_mem_addr;
+                                align = 0x10000;
+                            }
                         }
                         *paddr = (*paddr + size - 1) & ~(size - 1);
                         pci_set_io_region_addr(d, i, *paddr);
@@ -1151,7 +1481,7 @@ static void pci_bios_init_device(PCIDevice *d)
                 }
             }
             j++;
-        } while ((j < 2) && (d->bus == 1));
+        } while ((j < 2) && (d->bus >= 1));  /* Handle AGP (bus 1) and PCIe (bus > 1) */
         /* enable i/o and memory access */
         cmd = pci_config_readw(d, PCI_COMMAND);
         cmd |= (PCI_COMMAND_MEMORY | PCI_COMMAND_IO);
@@ -1176,6 +1506,18 @@ static void pci_bios_init_device(PCIDevice *d)
         pm_sci_int = pci_config_readb(d, PCI_INTERRUPT_LINE);
         piix4_pm_enable(d);
         acpi_enabled = 1;
+    }
+
+    if (vendor_id == PCI_VENDOR_ID_INTEL && device_id == PCI_DEVICE_ID_INTEL_C200_SMBUS) {
+        /* Intel C200 SMBus Controller (for ACPI) */
+        pm_io_base = PM_IO_BASE;
+        smb_io_base = SMB_IO_BASE;
+        // C200 ACPI SCI is typically IRQ 9
+        pci_config_writeb(d, PCI_INTERRUPT_LINE, 9);
+        pm_sci_int = pci_config_readb(d, PCI_INTERRUPT_LINE);
+        c200_smbus_enable(d);
+        acpi_enabled = 1;
+        BX_INFO("C200 SMBus/ACPI enabled\n");
     }
 }
 
@@ -1221,15 +1563,50 @@ void pci_for_each_device(void (*init_func)(PCIDevice *d))
     }
 }
 
+/* Enumerate devices on PCIe buses (for C200 chipset)
+   PCIe buses start at bus 1 and go up to pcie_bus_num */
+void pci_for_each_device_on_pcie(void (*init_func)(PCIDevice *d))
+{
+    PCIDevice d1, *d = &d1;
+    int bus, devfn;
+    uint16_t vendor_id, device_id;
+
+    /* Enumerate all PCIe buses that were assigned */
+    for(bus = 1; bus < pcie_bus_num; bus++) {
+        /* PCIe devices are always at device 0, but can have multiple functions */
+        for(devfn = 0; devfn < 8; devfn++) {
+            d->bus = bus;
+            d->devfn = devfn;
+            vendor_id = pci_config_readw(d, PCI_VENDOR_ID);
+            device_id = pci_config_readw(d, PCI_DEVICE_ID);
+            if (vendor_id != 0xffff && device_id != 0xffff) {
+                init_func(d);
+                BX_INFO("PCIe device found: bus %d devfn %d vendor=%04x device=%04x\n",
+                        bus, devfn, vendor_id, device_id);
+            }
+        }
+    }
+}
+
 void pci_bios_init(void)
 {
     pci_bios_io_addr = 0xc000;
     agp_bios_io_addr = 0xe000;
+    pcie_bios_io_addr = 0xd000;      /* PCIe I/O space starts at 0xd000 */
+    pcie_bios_mem_addr = 0xd0000000; /* PCIe memory space starts at 0xd0000000 */
     pci_bios_mem_addr = 0xc0000000;
     pci_bios_rom_start = 0xc0000;
     chipset_i440bx = 0;
+    chipset_c200 = 0;
+    pcie_bus_num = 1;       /* PCIe secondary buses start at 1 */
+    pcie_port_count = 0;    /* No active PCIe ports yet */
 
     pci_for_each_device(pci_bios_init_bridges);
+
+    /* Enumerate PCIe buses if C200 chipset with active ports */
+    if (chipset_c200 && pcie_port_count > 0) {
+        pci_for_each_device_on_pcie(pci_bios_init_device);
+    }
 
     pci_for_each_device(pci_bios_init_device);
 
@@ -1916,6 +2293,15 @@ void acpi_bios_init(void)
         uint8_t checksum = acpi_checksum(dsdt, size);
         BX_INFO("New ACPI DSDT checksum = 0x%02x\n", checksum);
         writeb(dsdt + 0x09, checksum);
+    } else if (chipset_c200) {
+        int size = ssdt_addr - dsdt_addr;
+        uint8_t *ptr = find_acpi_pci2isa_entry(dsdt, size);
+        BX_INFO("Modify ACPI PCI-to-LPC entry for C200 at: 0x%08lx\n", ptr);
+        writeb(ptr + 0x0C, 0x1f); // LPC device number (device 31)
+        writeb(dsdt + 0x09, 0x00); // Reset checksum
+        uint8_t checksum = acpi_checksum(dsdt, size);
+        BX_INFO("New ACPI DSDT checksum for C200 = 0x%02x\n", checksum);
+        writeb(dsdt + 0x09, checksum);
     }
 
     /* MADT */
@@ -2556,7 +2942,7 @@ static void find_440fx(PCIDevice *d)
 
     if (vendor_id == PCI_VENDOR_ID_INTEL &&
        (device_id == PCI_DEVICE_ID_INTEL_82441 || device_id == PCI_DEVICE_ID_INTEL_82437 ||
-        device_id == PCI_DEVICE_ID_INTEL_82443))
+        device_id == PCI_DEVICE_ID_INTEL_82443 || device_id == PCI_DEVICE_ID_INTEL_C200_HOST))
         i440_pcidev = *d;
 }
 
@@ -2569,6 +2955,8 @@ static void reinit_piix4_pm(PCIDevice *d)
 
     if (vendor_id == PCI_VENDOR_ID_INTEL && device_id == PCI_DEVICE_ID_INTEL_82371AB_3)
         piix4_pm_enable(d);
+    else if (vendor_id == PCI_VENDOR_ID_INTEL && device_id == PCI_DEVICE_ID_INTEL_C200_SMBUS)
+        c200_smbus_enable(d);
 }
 
 void rombios32_init(uint32_t *s3_resume_vector, uint8_t *shutdown_flag)

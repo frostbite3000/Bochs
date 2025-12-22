@@ -2,16 +2,21 @@
 // $Id$
 /////////////////////////////////////////////////////////////////////////
 
-MOTHER BOARD (i430FX / i440FX / i440BX support)                                   devices.cc
+MOTHER BOARD (i430FX / i440FX / i440BX / C200 support)                            devices.cc
   |
-  +---- Host bridge 82430FX / 82441FX / 82443BX                 pci.cc
+  +---- Host bridge 82430FX / 82441FX / 82443BX / C200          pci.cc
+  |
+  +---- i440BX PCI-to-AGP bridge (AGP support)                  pci.cc
+  |
+  +---- C200 PCIe Root Port (PCI Express support)               pci.cc
   |
   +---- PIIX/PIIX3/PIIX4 (ISA / IDE / USB / ACPI)
+  |     C200 PCH (LPC / SATA / USB / ACPI)
   |        |
-  |        +---- PCI-to-ISA bridge                              pci2isa.cc
-  |        +---- PCI IDE controller                             pci_ide.cc
+  |        +---- PCI-to-ISA bridge / C200 LPC Controller        pci2isa.cc
+  |        +---- PCI IDE controller / C200 SATA Controller      pci_ide.cc
   |        |
-  |        +---- PIIX4 ACPI support                             acpi.cc
+  |        +---- PIIX4 / C200 ACPI support                      acpi.cc
   |
   +---- High Precision Event Timer                              hpet.cc
   |

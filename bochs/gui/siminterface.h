@@ -538,7 +538,8 @@ enum {
 enum {
   BX_PCI_CHIPSET_I430FX,
   BX_PCI_CHIPSET_I440FX,
-  BX_PCI_CHIPSET_I440BX
+  BX_PCI_CHIPSET_I440BX,
+  BX_PCI_CHIPSET_I6_C200
 };
 
 #define BX_CLOCK_TIME0_LOCAL     1
@@ -721,6 +722,8 @@ public:
   virtual bool is_pci_device(const char *name) {return 0;}
   // return 1 if device is connected to the AGP slot
   virtual bool is_agp_device(const char *name) {return 0;}
+  // return 1 if device is connected to a PCIe slot
+  virtual bool is_pcie_device(const char *name) {return 0;}
   virtual bool debugger_active() {return false;}
 #if BX_DEBUGGER
   // for debugger: same behavior as pressing control-C

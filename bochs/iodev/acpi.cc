@@ -130,13 +130,19 @@ void bx_acpi_ctrl_c::init(void)
       (clock_mode == BX_CLOCK_SYNC_BOTH);
 
   Bit8u chipset = SIM->get_param_enum(BXPN_PCI_CHIPSET)->get();
+  BX_ACPI_THIS s.chipset = chipset;
   if (chipset == BX_PCI_CHIPSET_I440BX) {
     BX_ACPI_THIS s.devfunc = BX_PCI_DEVICE(7, 3);
+  } else if (chipset == BX_PCI_CHIPSET_I6_C200) {
+    // C200 ACPI is part of LPC controller (D31:F0), but we register separately
+    BX_ACPI_THIS s.devfunc = BX_PCI_DEVICE(31, 0);
   } else {
     BX_ACPI_THIS s.devfunc = BX_PCI_DEVICE(1, 3);
   }
+  const char *acpi_name = (chipset == BX_PCI_CHIPSET_I6_C200) ?
+                          "C200 PCH Power Management" : "ACPI Controller";
   DEV_register_pci_handlers(this, &BX_ACPI_THIS s.devfunc, BX_PLUGIN_ACPI,
-                            "ACPI Controller");
+                            acpi_name);
 
   if (BX_ACPI_THIS s.timer_index == BX_NULL_TIMER_HANDLE) {
     BX_ACPI_THIS s.timer_index =
@@ -148,7 +154,13 @@ void bx_acpi_ctrl_c::init(void)
   BX_ACPI_THIS s.sm_base = 0x0;
 
   // initialize readonly registers
-  init_pci_conf(0x8086, 0x7113, 0x03, 0x068000, 0x00, 0);
+  if (chipset == BX_PCI_CHIPSET_I6_C200) {
+    // C200 doesn't have a separate ACPI PCI device, it's part of LPC
+    // We skip PCI config init here since LPC handles it
+    BX_INFO(("C200 ACPI: Using LPC controller for power management"));
+  } else {
+    init_pci_conf(0x8086, 0x7113, 0x03, 0x068000, 0x00, 0);
+  }
 }
 
 void bx_acpi_ctrl_c::reset(unsigned type)

@@ -63,6 +63,7 @@ private:
 
   struct {
     Bit8u devfunc;
+    Bit8u chipset;
     Bit32u pm_base;
     Bit32u sm_base;
     Bit16u pmsts;

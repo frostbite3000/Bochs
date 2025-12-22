@@ -22,6 +22,7 @@
 // i430FX - PIIX
 // i440FX - PIIX3
 // i440BX - PIIX4
+// Intel 6 Series C200 - PCH LPC Controller
 
 // Define BX_PLUGGABLE in files that can be compiled into plugins.  For
 // platforms that require a special tag on exported symbols, BX_PLUGGABLE
@@ -74,11 +75,15 @@ void bx_piix3_c::init(void)
   BX_P2I_THIS s.chipset = SIM->get_param_enum(BXPN_PCI_CHIPSET)->get();
   if (BX_P2I_THIS s.chipset == BX_PCI_CHIPSET_I440BX) {
     BX_P2I_THIS s.devfunc = BX_PCI_DEVICE(7, 0);
+  } else if (BX_P2I_THIS s.chipset == BX_PCI_CHIPSET_I6_C200) {
+    BX_P2I_THIS s.devfunc = BX_PCI_DEVICE(31, 0);
   } else {
     BX_P2I_THIS s.devfunc = BX_PCI_DEVICE(1, 0);
   }
+  const char *bridge_name = (BX_P2I_THIS s.chipset == BX_PCI_CHIPSET_I6_C200) ?
+                            "C200 PCH LPC Controller" : "PIIX3 PCI-to-ISA bridge";
   DEV_register_pci_handlers(this, &BX_P2I_THIS s.devfunc, BX_PLUGIN_PCI2ISA,
-      "PIIX3 PCI-to-ISA bridge");
+      bridge_name);
 
   DEV_register_iowrite_handler(this, write_handler, 0x00B2, "PIIX3 PCI-to-ISA bridge", 3);
   DEV_register_iowrite_handler(this, write_handler, 0x00B3, "PIIX3 PCI-to-ISA bridge", 1);
@@ -102,6 +107,18 @@ void bx_piix3_c::init(void)
     init_pci_conf(0x8086, 0x122e, 0x01, 0x060100, 0x80, 0);
   } else if (BX_P2I_THIS s.chipset == BX_PCI_CHIPSET_I440BX) {
     init_pci_conf(0x8086, 0x7110, 0x00, 0x060100, 0x80, 0);
+  } else if (BX_P2I_THIS s.chipset == BX_PCI_CHIPSET_I6_C200) {
+    // Intel C200 PCH LPC Controller (Device ID 0x1C44 = Q67 Express)
+    init_pci_conf(0x8086, 0x1c44, 0x05, 0x060100, 0x80, 0);
+    BX_P2I_THIS pci_conf[0x06] = 0x00; // Status
+    BX_P2I_THIS pci_conf[0x07] = 0x02;
+    // LPC I/F Configuration Registers
+    BX_P2I_THIS pci_conf[0x40] = 0x01; // ACPI Base Address (enabled)
+    BX_P2I_THIS pci_conf[0x44] = 0x80; // ACPI Control
+    BX_P2I_THIS pci_conf[0x48] = 0x01; // GPIO Base Address (enabled)
+    BX_P2I_THIS pci_conf[0x4c] = 0x00; // GPIO Control
+    BX_P2I_THIS pci_conf[0x80] = 0x00; // RCBA (Root Complex Base Address)
+    BX_P2I_THIS pci_conf[0xd8] = 0x00; // General Control and Status
   } else {
     init_pci_conf(0x8086, 0x7000, 0x00, 0x060100, 0x80, 0);
   }
@@ -189,6 +206,13 @@ void bx_piix3_c::pci_set_irq(Bit8u devfunc, unsigned line, bool level)
   int slot = DEV_pci_get_slot_from_dev(device);
   if (BX_P2I_THIS s.chipset == BX_PCI_CHIPSET_I440BX) {
     if ((device == 7) || (device == 0)) {
+      pirq = line - 1;
+    } else {
+      pirq = (slot + line - 2) & 3;
+    }
+  } else if (BX_P2I_THIS s.chipset == BX_PCI_CHIPSET_I6_C200) {
+    // C200 PCH uses different IRQ routing via PIRQ registers
+    if ((device == 31) || (device == 0)) {
       pirq = line - 1;
     } else {
       pirq = (slot + line - 2) & 3;
@@ -424,7 +448,11 @@ void bx_piix3_c::debug_dump(int argc, char **argv)
 {
   int arg, i, j, r;
 
-  dbg_printf("PIIX3 ISA bridge\n\n");
+  if (BX_P2I_THIS s.chipset == BX_PCI_CHIPSET_I6_C200) {
+    dbg_printf("C200 PCH LPC Controller\n\n");
+  } else {
+    dbg_printf("PIIX3 ISA bridge\n\n");
+  }
   dbg_printf("ELCR1 = 0x%02x\n", BX_P2I_THIS s.elcr1);
   dbg_printf("ELCR2 = 0x%02x\n", BX_P2I_THIS s.elcr2);
   if (argc == 0) {

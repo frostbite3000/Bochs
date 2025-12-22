@@ -168,6 +168,7 @@ public:
   }
   virtual bool is_pci_device(const char *name);
   virtual bool is_agp_device(const char *name);
+  virtual bool is_pcie_device(const char *name);
 #if BX_DEBUGGER
   virtual bool debugger_active() {return bx_dbg.debugger_active;}
   virtual void debug_break();
@@ -831,7 +832,9 @@ bool bx_real_sim_c::is_pci_device(const char *name)
   const char *device;
 
   if (SIM->get_param_bool(BXPN_PCI_ENABLED)->get()) {
-    if (SIM->get_param_enum(BXPN_PCI_CHIPSET)->get() == BX_PCI_CHIPSET_I440BX) {
+    int chipset = SIM->get_param_enum(BXPN_PCI_CHIPSET)->get();
+    if ((chipset == BX_PCI_CHIPSET_I440BX) ||
+        (chipset == BX_PCI_CHIPSET_I6_C200)) {
       max_pci_slots = 4;
     }
     for (i = 0; i < max_pci_slots; i++) {
@@ -850,6 +853,20 @@ bool bx_real_sim_c::is_agp_device(const char *name)
 {
 #if BX_SUPPORT_PCI
   if (get_param_bool(BXPN_PCI_ENABLED)->get() && DEV_agp_present()) {
+    const char *device = SIM->get_param_enum("pci.slot.5")->get_selected();
+    if (!strcmp(name, device)) {
+      return 1;
+    }
+  }
+#endif
+  return 0;
+}
+
+bool bx_real_sim_c::is_pcie_device(const char *name)
+{
+#if BX_SUPPORT_PCI
+  if (get_param_bool(BXPN_PCI_ENABLED)->get() && DEV_pcie_present()) {
+    // PCIe devices use slot 5 (similar to AGP) for C200 chipset
     const char *device = SIM->get_param_enum("pci.slot.5")->get_selected();
     if (!strcmp(name, device)) {
       return 1;

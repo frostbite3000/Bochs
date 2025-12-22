@@ -184,7 +184,7 @@ void bx_devices_c::init(BX_MEM_C *newmem)
     bx_soundmod_ctl.open_output();
   }
 #endif
-  // PCI logic (i440FX)
+  // PCI logic
   memset(argv, 0, sizeof(argv));
   pci.enabled = SIM->get_param_bool(BXPN_PCI_ENABLED)->get();
   if (pci.enabled) {
@@ -193,6 +193,9 @@ void bx_devices_c::init(BX_MEM_C *newmem)
       pci.advopts = (BX_PCI_ADVOPT_NOHPET | BX_PCI_ADVOPT_NOACPI | BX_PCI_ADVOPT_NOAGP);
     } else if (chipset == BX_PCI_CHIPSET_I440FX) {
       pci.advopts = BX_PCI_ADVOPT_NOAGP;
+    } else if (chipset == BX_PCI_CHIPSET_I6_C200) {
+      // C200 supports ACPI, HPET, no AGP (uses PCIe)
+      pci.advopts = BX_PCI_ADVOPT_NOAGP;
     } else {
       pci.advopts = 0;
     }
@@ -200,7 +203,8 @@ void bx_devices_c::init(BX_MEM_C *newmem)
     argc = bx_split_option_list("PCI advanced options", options, argv, 16);
     for (i = 0; i < argc; i++) {
       if (!strcmp(argv[i], "noacpi")) {
-        if (chipset == BX_PCI_CHIPSET_I440FX) {
+        if ((chipset == BX_PCI_CHIPSET_I440FX) ||
+            (chipset == BX_PCI_CHIPSET_I6_C200)) {
           pci.advopts |= BX_PCI_ADVOPT_NOACPI;
         } else {
           BX_ERROR(("Disabling ACPI not supported by PCI chipset"));
@@ -219,6 +223,12 @@ void bx_devices_c::init(BX_MEM_C *newmem)
         } else {
           BX_ERROR(("Disabling AGP not supported by PCI chipset"));
         }
+      } else if (!strcmp(argv[i], "nopcie")) {
+        if (chipset == BX_PCI_CHIPSET_I6_C200) {
+          pci.advopts |= BX_PCI_ADVOPT_NOPCIE;
+        } else {
+          BX_ERROR(("Disabling PCIe not supported by PCI chipset"));
+        }
       } else {
         BX_ERROR(("Unknown advanced PCI option '%s'", argv[i]));
       }
@@ -235,6 +245,12 @@ void bx_devices_c::init(BX_MEM_C *newmem)
         SIM->opt_plugin_ctrl("usb_uhci", 1);
       }
       SIM->get_param_bool(BXPN_UHCI_ENABLED)->set(1);
+    } else if (chipset == BX_PCI_CHIPSET_I6_C200) {
+      // C200 has EHCI as primary USB controller
+      if (!PLUG_device_present("usb_ehci")) {
+        SIM->opt_plugin_ctrl("usb_ehci", 1);
+      }
+      SIM->get_param_bool(BXPN_EHCI_ENABLED)->set(1);
     }
 #endif
     if ((pci.advopts & BX_PCI_ADVOPT_NOACPI) == 0) {
@@ -1151,6 +1167,16 @@ bool bx_devices_c::is_agp_present(void)
 #endif
 }
 
+bool bx_devices_c::is_pcie_present(void)
+{
+#if BX_SUPPORT_PCI
+  return (pci.enabled && ((pci.advopts & BX_PCI_ADVOPT_NOPCIE) == 0) &&
+          (SIM->get_param_enum(BXPN_PCI_CHIPSET)->get() == BX_PCI_CHIPSET_I6_C200));
+#else
+  return false;
+#endif
+}
+
 void bx_devices_c::add_sound_device(void)
 {
   sound_device_count++;
@@ -1422,8 +1448,9 @@ bool bx_devices_c::register_pci_handlers(bx_pci_device_c *dev,
 
   if (strcmp(name, "pci") && strcmp(name, "pci2isa") && strcmp(name, "pci_ide")
       && ((*devfunc & 0xf8) == 0x00)) {
-    if ((SIM->get_param_enum(BXPN_PCI_CHIPSET)->get() == BX_PCI_CHIPSET_I440BX) &&
-        (is_agp_present())) {
+    int chipset = SIM->get_param_enum(BXPN_PCI_CHIPSET)->get();
+    if (((chipset == BX_PCI_CHIPSET_I440BX) && (is_agp_present())) ||
+        (chipset == BX_PCI_CHIPSET_I6_C200)) {
       max_pci_slots = 4;
     }
     if (bus == 0) {

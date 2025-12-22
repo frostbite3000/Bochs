@@ -49,6 +49,7 @@ CPUDB_OBJS = intel/i486dx4.o \
              intel/corei5_lynnfield_750.o \
              intel/corei5_arrandale_m520.o \
              intel/corei7_sandy_bridge_2600K.o \
+             intel/corei3_ivy_bridge_3220.o \
              intel/corei7_ivy_bridge_3770K.o \
              intel/corei7_haswell_4770.o \
              intel/broadwell_ult.o \
@@ -280,6 +281,16 @@ intel/corei7_icelake-u.o: intel/corei7_icelake-u.@CPP_SUFFIX@ ../../bochs.h \
  ../../cpu/xmm.h ../../cpu/vmx.h ../../cpu/vmx_ctrls.h ../../cpu/access.h \
  ../../gui/siminterface.h ../../gui/paramtree.h ../../param_names.h \
  intel/corei7_icelake-u.h ../../cpu/cpuid.h
+intel/corei3_ivy_bridge_3220.o: intel/corei3_ivy_bridge_3220.@CPP_SUFFIX@ ../../bochs.h \
+ ../../config.h ../../osdep.h ../../logio.h ../../misc/bswap.h ../cpu.h \
+ ../decoder/decoder.h ../decoder/features.h \
+ ../../instrument/stubs/instrument.h ../i387.h \
+ ../softfloat3e/include/softfloat_types.h ../../config.h ../fpu/tag_w.h \
+ ../fpu/status_w.h ../fpu/control_w.h ../crregs.h ../descriptor.h \
+ ../decoder/instr.h ../lazy_flags.h ../tlb.h ../icache.h ../xmm.h \
+ ../vmx.h ../vmx_ctrls.h ../access.h ../../gui/siminterface.h \
+ ../../gui/paramtree.h ../../param_names.h \
+ intel/corei3_ivy_bridge_3220.h ../../cpu/cpuid.h
 intel/corei7_ivy_bridge_3770K.o: intel/corei7_ivy_bridge_3770K.@CPP_SUFFIX@ ../../bochs.h \
  ../../config.h ../../osdep.h ../../logio.h ../../misc/bswap.h ../cpu.h \
  ../decoder/decoder.h ../decoder/features.h \

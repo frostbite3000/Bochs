@@ -261,15 +261,30 @@ void bx_usb_ehci_c::init(void)
   BX_EHCI_THIS hub.frame_timer_index = DEV_register_timer(this, ehci_frame_handler,
                                                  FRAME_TIMER_USEC, 1, 1, "ehci.frame_timer");
 
-  BX_EHCI_THIS devfunc = 0x07;
+  int chipset = SIM->get_param_enum(BXPN_PCI_CHIPSET)->get();
+  if (chipset == BX_PCI_CHIPSET_I6_C200) {
+    // Intel C200 PCH EHCI Controller at D26:F0 or D29:F0
+    BX_EHCI_THIS devfunc = BX_PCI_DEVICE(29, 0);
+  } else {
+    BX_EHCI_THIS devfunc = 0x07;
+  }
+  const char *ehci_name = (chipset == BX_PCI_CHIPSET_I6_C200) ?
+                          "C200 USB EHCI Controller" : "Experimental USB EHCI";
   DEV_register_pci_handlers(this, &BX_EHCI_THIS devfunc, BX_PLUGIN_USB_EHCI,
-                            "Experimental USB EHCI");
+                            ehci_name);
 
   BX_EHCI_THIS init_bar_mem(0, IO_SPACE_SIZE, read_handler, write_handler);
 
   devfunc = BX_EHCI_THIS devfunc & 0xF8;
   BX_EHCI_THIS companion_type = SIM->get_param_enum(BXPN_EHCI_COMPANION)->get();
-  if (companion_type == EHCI_COMPANION_UHCI) {
+  if (chipset == BX_PCI_CHIPSET_I6_C200) {
+    // Intel C200 PCH USB EHCI Controller
+    // Device ID 0x1C26 = C200 EHCI #1
+    init_pci_conf(0x8086, 0x1c26, 0x05, 0x0C0320, 0x00, BX_PCI_INTD);
+    BX_EHCI_THIS pci_conf[0x60] = 0x20; // USB release number
+    // C200 doesn't use companion controllers in the same way
+    // The EHCI is standalone with USB 2.0 support
+  } else if (companion_type == EHCI_COMPANION_UHCI) {
     // initialize readonly registers (same as QEMU)
     // 0x8086 = vendor (Intel)
     // 0x24cd = device (82801D)

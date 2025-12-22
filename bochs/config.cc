@@ -726,7 +726,7 @@ void bx_init_options()
       "host",
       "Host allocated memory size (megabytes)",
       "Amount of host allocated memory in megabytes",
-      1, 2048,
+      1, 16384,
       BX_DEFAULT_MEM_MEGS);
   host_ramsize->set_ask_format("Enter host memory size (MB): [%d] ");
   ram->set_options(ram->SERIES_ASK);
@@ -923,7 +923,7 @@ void bx_init_options()
   bx_list_c *pci = new bx_list_c(root_param, "pci", "PCI Options");
 
   // pci options
-  static const char *pci_chipset_names[] = { "i430fx", "i440fx", "i440bx", NULL };
+  static const char *pci_chipset_names[] = { "i430fx", "i440fx", "i440bx", "c200", NULL };
   deplist = new bx_list_c(NULL);
 
   enabled = new bx_param_bool_c(pci,
@@ -958,6 +958,17 @@ void bx_init_options()
                                                      "Set advanced PCI options",
                                                      "", BX_PATHNAME_LEN);
   deplist->add(advopts);
+
+  // SATA mode option (for C200 chipset)
+  static const char *sata_mode_names[] = { "ide", "ahci", NULL };
+  bx_param_enum_c *sata_mode = new bx_param_enum_c(pci,
+      "sata_mode", "SATA Mode",
+      "Select SATA controller mode (IDE or AHCI) for C200 chipset",
+      sata_mode_names,
+      0,  // Default to IDE mode
+      0);
+  deplist->add(sata_mode);
+
   enabled->set_dependent_list(deplist);
   enabled->set_enabled(BX_SUPPORT_PCI);
   pci->set_options(pci->SHOW_PARENT);
@@ -3011,6 +3022,13 @@ static int parse_line_formatted(const char *context, int num_params, char *param
         }
       } else if (!strncmp(params[i], "advopts=", 8)) {
         SIM->get_param_string(BXPN_PCI_ADV_OPTS)->set(&params[i][8]);
+      } else if (!strncmp(params[i], "sata_mode=", 10)) {
+        bx_param_enum_c *sata_mode = SIM->get_param_enum("pci.sata_mode");
+        if (sata_mode != NULL) {
+          if (!sata_mode->set_by_name(&params[i][10])) {
+            PARSE_ERR(("%s: pci: unknown sata_mode '%s'", context, &params[i][10]));
+          }
+        }
       } else {
         PARSE_ERR(("%s: pci: unknown parameter '%s'.", context, params[i]));
       }
