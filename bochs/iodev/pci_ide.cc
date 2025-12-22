@@ -80,22 +80,21 @@ bx_pci_ide_c::~bx_pci_ide_c()
 void bx_pci_ide_c::init(void)
 {
   unsigned i;
-  Bit8u devfunc;
 
   BX_PIDE_THIS s.chipset = SIM->get_param_enum(BXPN_PCI_CHIPSET)->get();
   BX_PIDE_THIS s.sata_mode = AHCI_SATA_MODE_IDE;  // Default to IDE mode
 
   if (BX_PIDE_THIS s.chipset == BX_PCI_CHIPSET_I440BX) {
-    devfunc = BX_PCI_DEVICE(7, 1);
+    BX_PIDE_THIS devfunc = BX_PCI_DEVICE(7, 1);
   } else if (BX_PIDE_THIS s.chipset == BX_PCI_CHIPSET_I6_C200) {
-    devfunc = BX_PCI_DEVICE(31, 2);
+    BX_PIDE_THIS devfunc = BX_PCI_DEVICE(31, 2);
     // Check if AHCI mode is enabled via configuration
     bx_param_enum_c *sata_mode = SIM->get_param_enum("pci.sata_mode");
     if (sata_mode != NULL && sata_mode->get() == 1) {
       BX_PIDE_THIS s.sata_mode = AHCI_SATA_MODE_AHCI;
     }
   } else {
-    devfunc = BX_PCI_DEVICE(1, 1);
+    BX_PIDE_THIS devfunc = BX_PCI_DEVICE(1, 1);
   }
 
   const char *ctrl_name;
@@ -108,7 +107,7 @@ void bx_pci_ide_c::init(void)
   } else {
     ctrl_name = "PIIX3 PCI IDE controller";
   }
-  DEV_register_pci_handlers(this, &devfunc, BX_PLUGIN_PCI_IDE, ctrl_name);
+  DEV_register_pci_handlers(this, &BX_PIDE_THIS devfunc, BX_PLUGIN_PCI_IDE, ctrl_name);
 
   // register BM-DMA timer
   for (i=0; i<2; i++) {
@@ -626,16 +625,24 @@ void bx_pci_ide_c::ahci_port_reset(int port)
 }
 
 // AHCI memory-mapped I/O read handler
-Bit32u bx_pci_ide_c::ahci_read_handler(void *this_ptr, Bit32u address, unsigned io_len)
+bool bx_pci_ide_c::ahci_read_handler(bx_phy_address addr, unsigned len, void *data, void *param)
 {
-#if !BX_USE_PIDE_SMF
-  bx_pci_ide_c *class_ptr = (bx_pci_ide_c *) this_ptr;
-  return class_ptr->ahci_read(address - class_ptr->pci_bar[5].addr, io_len);
-#else
-  UNUSED(this_ptr);
-  Bit32u offset = address - BX_PIDE_THIS pci_bar[5].addr;
-  return BX_PIDE_THIS ahci_read(offset, io_len);
-#endif
+  UNUSED(param);
+  Bit32u offset = (Bit32u)(addr - BX_PIDE_THIS pci_bar[5].addr);
+  Bit32u value = BX_PIDE_THIS ahci_read(offset, len);
+
+  switch (len) {
+    case 1:
+      *(Bit8u *)data = (Bit8u)value;
+      break;
+    case 2:
+      *(Bit16u *)data = (Bit16u)value;
+      break;
+    case 4:
+      *(Bit32u *)data = value;
+      break;
+  }
+  return true;
 }
 
 Bit32u bx_pci_ide_c::ahci_read(Bit32u offset, unsigned io_len)
@@ -757,16 +764,25 @@ Bit32u bx_pci_ide_c::ahci_port_read(int port, Bit32u offset)
 }
 
 // AHCI memory-mapped I/O write handler
-void bx_pci_ide_c::ahci_write_handler(void *this_ptr, Bit32u address, Bit32u value, unsigned io_len)
+bool bx_pci_ide_c::ahci_write_handler(bx_phy_address addr, unsigned len, void *data, void *param)
 {
-#if !BX_USE_PIDE_SMF
-  bx_pci_ide_c *class_ptr = (bx_pci_ide_c *) this_ptr;
-  class_ptr->ahci_write(address - class_ptr->pci_bar[5].addr, value, io_len);
-#else
-  UNUSED(this_ptr);
-  Bit32u offset = address - BX_PIDE_THIS pci_bar[5].addr;
-  BX_PIDE_THIS ahci_write(offset, value, io_len);
-#endif
+  UNUSED(param);
+  Bit32u offset = (Bit32u)(addr - BX_PIDE_THIS pci_bar[5].addr);
+  Bit32u value = 0;
+
+  switch (len) {
+    case 1:
+      value = *(Bit8u *)data;
+      break;
+    case 2:
+      value = *(Bit16u *)data;
+      break;
+    case 4:
+      value = *(Bit32u *)data;
+      break;
+  }
+  BX_PIDE_THIS ahci_write(offset, value, len);
+  return true;
 }
 
 void bx_pci_ide_c::ahci_write(Bit32u offset, Bit32u value, unsigned io_len)

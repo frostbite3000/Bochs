@@ -222,6 +222,8 @@ public:
 
 private:
 
+  Bit8u devfunc;
+
   struct {
     unsigned chipset;
     unsigned sata_mode;  // IDE or AHCI mode
@@ -254,8 +256,8 @@ private:
 
   static Bit32u read_handler(void *this_ptr, Bit32u address, unsigned io_len);
   static void   write_handler(void *this_ptr, Bit32u address, Bit32u value, unsigned io_len);
-  static Bit32u ahci_read_handler(void *this_ptr, Bit32u address, unsigned io_len);
-  static void   ahci_write_handler(void *this_ptr, Bit32u address, Bit32u value, unsigned io_len);
+  static bool   ahci_read_handler(bx_phy_address addr, unsigned len, void *data, void *param);
+  static bool   ahci_write_handler(bx_phy_address addr, unsigned len, void *data, void *param);
 #if !BX_USE_PIDE_SMF
   Bit32u read(Bit32u address, unsigned io_len);
   void   write(Bit32u address, Bit32u value, unsigned io_len);
