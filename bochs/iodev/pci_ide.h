@@ -220,9 +220,9 @@ public:
   static void timer_handler(void *);
   BX_PIDE_SMF void timer(void);
 
-  Bit8u devfunc;
-
 private:
+
+  Bit8u devfunc;
 
   struct {
     unsigned chipset;
