@@ -1362,6 +1362,8 @@ static void pci_bios_init_pcirom(PCIDevice *d, uint32_t paddr)
             return;
         tmpaddr = pci_bios_rom_start;
         copied = 0;
+        BX_INFO("pci_bios_init_pcirom: copying ROM from 0x%08lx to 0x%05lx, size=0x%05lx, pam_base=0x%02x, chipset_c200=%d\n",
+                (unsigned long)paddr, (unsigned long)pci_bios_rom_start, (unsigned long)size, pam_base, chipset_c200);
         do {
             tmpsize = 0x4000 - (tmpaddr & 0x3fff);
             if ((size - copied) < tmpsize) {
@@ -1374,15 +1376,27 @@ static void pci_bios_init_pcirom(PCIDevice *d, uint32_t paddr)
                 shift = 0;
             }
             v = pci_config_readb(i440fx, reg);
+            BX_INFO("PAM reg 0x%02x: before=0x%02x, shift=%d, tmpaddr=0x%05lx\n", reg, v, shift, (unsigned long)tmpaddr);
             v = (v & (~(0x03 << shift))) | (0x02 << shift);
             pci_config_writeb(i440fx, reg, v);
             memcpy((void *)tmpaddr, (void *)(paddr + copied), tmpsize);
             v |= (0x01 << shift); // set RE bits
             pci_config_writeb(i440fx, reg, v);
+            BX_INFO("PAM reg 0x%02x: after=0x%02x\n", reg, v);
+            /* Verify the copy by checking signature */
+            if (tmpaddr == pci_bios_rom_start) {
+                uint16_t sig = *(uint16_t *)tmpaddr;
+                BX_INFO("ROM signature at 0x%05lx: 0x%04x (expected 0xAA55)\n", (unsigned long)tmpaddr, sig);
+            }
             tmpaddr += tmpsize;
             copied += tmpsize;
         } while (copied < size);
-        BX_INFO("PCI ROM copied to 0x%05x (size=0x%05x)\n", pci_bios_rom_start, size);
+        BX_INFO("PCI ROM copied to 0x%05lx (size=0x%05lx)\n", (unsigned long)pci_bios_rom_start, (unsigned long)size);
+        /* Final verification */
+        {
+            uint16_t final_sig = *(uint16_t *)(pci_bios_rom_start);
+            BX_INFO("Final ROM signature at 0x%05lx: 0x%04x\n", (unsigned long)pci_bios_rom_start, final_sig);
+        }
         pci_bios_rom_start += size;
         pci_config_writeb(d, PCI_ROM_ADDRESS, 0x00);
     }
