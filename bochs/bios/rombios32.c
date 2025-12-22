@@ -772,8 +772,12 @@ static void bios_shadow_init_c200(PCIDevice *d)
 {
     int v;
 
-    if (bios_table_cur_addr == 0)
+    BX_INFO("C200 bios_shadow_init_c200 called, bios_table_cur_addr=0x%08lx\n", bios_table_cur_addr);
+
+    if (bios_table_cur_addr == 0) {
+        BX_INFO("C200 bios_shadow_init_c200: bios_table_cur_addr is 0, returning early\n");
         return;
+    }
 
     /* Note: PAM1-6 (0x81-0x86) are left at 0x00 so VGA BIOS and expansion ROMs
        are read from ROM, not Shadow RAM. The pci_bios_init_pcirom function
@@ -784,15 +788,17 @@ static void bios_shadow_init_c200(PCIDevice *d)
        Bits [1:0] = Write Enable for high 64KB
        0x30 = Read/Write enable */
     v = pci_config_readb(d, 0x80);
+    BX_INFO("C200 PAM0 before: 0x%02x\n", v);
     v &= 0xcf;
     pci_config_writeb(d, 0x80, v);
     memcpy((void *)BIOS_TMP_STORAGE, (void *)0x000f0000, 0x10000);
     v |= 0x30;
     pci_config_writeb(d, 0x80, v);
+    BX_INFO("C200 PAM0 after: 0x%02x\n", v);
     memcpy((void *)0x000f0000, (void *)BIOS_TMP_STORAGE, 0x10000);
 
     i440_pcidev = *d;
-    BX_INFO("C200 BIOS shadow RAM enabled\n");
+    BX_INFO("C200 BIOS shadow RAM enabled, i440_pcidev.bus=%d devfn=0x%02x\n", d->bus, d->devfn);
 }
 
 static void bios_lock_shadow_ram(void)
