@@ -770,16 +770,14 @@ static void bios_shadow_init(PCIDevice *d)
    PAM6 (0x86): 0xE8000-0xEFFFF (Expansion ROM) */
 static void bios_shadow_init_c200(PCIDevice *d)
 {
-    int v, i;
+    int v;
 
     if (bios_table_cur_addr == 0)
         return;
 
-    /* Enable read/write for VGA BIOS and expansion ROM regions (C0000-EFFFF)
-       PAM1-6 (0x81-0x86): 0x33 = Read/Write enable for both 16KB regions */
-    for (i = 0x81; i <= 0x86; i++) {
-        pci_config_writeb(d, i, 0x33);
-    }
+    /* Note: PAM1-6 (0x81-0x86) are left at 0x00 so VGA BIOS and expansion ROMs
+       are read from ROM, not Shadow RAM. The pci_bios_init_pcirom function
+       will enable shadow RAM on a per-region basis when copying option ROMs. */
 
     /* C200 PAM0 register at offset 0x80 controls F0000-FFFFF
        Bits [5:4] = Read Enable for high 64KB
@@ -800,15 +798,12 @@ static void bios_shadow_init_c200(PCIDevice *d)
 static void bios_lock_shadow_ram(void)
 {
     PCIDevice *d = &i440_pcidev;
-    int v, i;
+    int v;
 
     wbinvd();
     if (chipset_c200) {
-        /* C200 uses PAM registers at offset 0x80-0x86 */
-        /* Lock PAM1-6 (C0000-EFFFF) to read-only: 0x11 = Read-only for both regions */
-        for (i = 0x81; i <= 0x86; i++) {
-            pci_config_writeb(d, i, 0x11);
-        }
+        /* C200 uses PAM0 at offset 0x80 for F0000-FFFFF
+           PAM1-6 (C0000-EFFFF) are managed by pci_bios_init_pcirom */
         /* Lock PAM0 (F0000-FFFFF) to read-only */
         v = pci_config_readb(d, 0x80);
         v = (v & 0x0f) | (0x10);  /* Read-only */
@@ -1339,11 +1334,17 @@ static void pci_bios_init_pcirom(PCIDevice *d, uint32_t paddr)
 {
     PCIDevice d1, *i440fx = &d1;
     uint32_t tmpaddr, size;
-    uint8_t reg, v;
+    uint8_t reg, v, pam_base;
     int copied, shift, tmpsize;
 
     i440fx->bus = 0;
     i440fx->devfn = 0;
+
+    /* PAM register base offset differs by chipset:
+       i440FX/i440BX: 0x5a-0x5f (PAM1-PAM6 for C0000-EFFFF)
+       C200: 0x81-0x86 (PAM1-PAM6 for C0000-EFFFF) */
+    pam_base = chipset_c200 ? 0x81 : 0x5a;
+
     if (paddr != 0) {
         size = readb((void *)(paddr + 2));
         if (size & 0x03) {
@@ -1360,7 +1361,7 @@ static void pci_bios_init_pcirom(PCIDevice *d, uint32_t paddr)
             if ((size - copied) < tmpsize) {
                 tmpsize = size - copied;
             }
-            reg = 0x5a + (uint8_t)((tmpaddr >> 15) & 0x07);
+            reg = pam_base + (uint8_t)((tmpaddr >> 15) & 0x07);
             if (tmpaddr & 0x4000) {
                 shift = 4;
             } else {
