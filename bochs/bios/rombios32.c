@@ -985,7 +985,7 @@ static void pcie_root_port_init(PCIDevice *d, int port_num)
 {
     PCIDevice pcie_dev;
     uint8_t secondary_bus;
-    uint16_t io_base, mem_base;
+    uint16_t io_base;
     uint32_t mem_window;
 
     /* Assign secondary bus number */
