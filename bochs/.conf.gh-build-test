@@ -31,6 +31,7 @@ case $which_config in
       --enable-x86-64 \
       --enable-vmx=2 \
       --enable-svm \
+      --enable-smp \
       --enable-avx \
       --enable-evex \
       --enable-amx \
@@ -71,6 +72,7 @@ case $which_config in
       --enable-debugger-gui \
       --enable-fpu \
       --enable-alignment-check \
+      --enable-smp \
       --enable-3dnow \
       --enable-monitor-mwait \
       --enable-protection-keys \
@@ -110,6 +112,7 @@ case $which_config in
     ./configure \
       --enable-all-optimizations \
       --enable-cpu-level=6 \
+      --enable-smp \
       --enable-3dnow \
       --enable-vmx=1 \
       --enable-pci \
@@ -133,6 +136,7 @@ case $which_config in
     ./configure \
       --enable-all-optimizations \
       --enable-cpu-level=6 \
+      --enable-smp \
       --enable-3dnow \
       --enable-x86-64 \
       --enable-pci \

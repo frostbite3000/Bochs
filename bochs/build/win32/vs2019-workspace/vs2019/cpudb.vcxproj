@@ -234,6 +234,7 @@
     <ClCompile Include="..\cpu\cpudb\intel\corei5_arrandale_m520.cc" />
     <ClCompile Include="..\cpu\cpudb\intel\corei5_lynnfield_750.cc" />
     <ClCompile Include="..\cpu\cpudb\intel\corei7_haswell_4770.cc" />
+    <ClCompile Include="..\cpu\cpudb\intel\corei3_ivy_bridge_3220.cc" />
     <ClCompile Include="..\cpu\cpudb\intel\corei7_ivy_bridge_3770K.cc" />
     <ClCompile Include="..\cpu\cpudb\intel\corei7_sandy_bridge_2600K.cc" />
     <ClCompile Include="..\cpu\cpudb\intel\corei7_skylake-x.cc" />
@@ -270,6 +271,7 @@
     <ClInclude Include="..\cpu\cpudb\intel\corei5_arrandale_m520.h" />
     <ClInclude Include="..\cpu\cpudb\intel\corei5_lynnfield_750.h" />
     <ClInclude Include="..\cpu\cpudb\intel\corei7_haswell_4770.h" />
+    <ClInclude Include="..\cpu\cpudb\intel\corei3_ivy_bridge_3220.h" />
     <ClInclude Include="..\cpu\cpudb\intel\corei7_ivy_bridge_3770K.h" />
     <ClInclude Include="..\cpu\cpudb\intel\corei7_sandy_bridge_2600K.h" />
     <ClInclude Include="..\cpu\cpudb\intel\corei7_skylake-x.h" />

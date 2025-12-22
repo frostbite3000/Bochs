@@ -28,6 +28,7 @@ export LDFLAGS
             --enable-x86-64 \
             --enable-vmx=2 \
             --enable-svm \
+            --enable-smp \
             --enable-avx \
             --enable-evex \
             --enable-cet \
