@@ -1369,7 +1369,7 @@ static void pci_bios_init_pcirom(PCIDevice *d, uint32_t paddr)
             if ((size - copied) < tmpsize) {
                 tmpsize = size - copied;
             }
-            reg = pam_base + (uint8_t)((tmpaddr >> 15) & 0x07);
+            reg = pam_base + (uint8_t)(((tmpaddr - 0xc0000) >> 15) & 0x07);
             if (tmpaddr & 0x4000) {
                 shift = 4;
             } else {
