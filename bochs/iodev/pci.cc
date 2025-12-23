@@ -288,14 +288,12 @@ bx_pci_bridge_c::reset(unsigned type)
     BX_PCI_THIS pci_conf[0xbb] = 0x00;
     BX_PCI_THIS gart_base = 0;
   }
-  // PAM registers - different offsets for different chipsets
+  // PAM registers at 0x59-0x5F (all chipsets use this for compatibility)
+  for (i=0x59; i<0x60; i++)
+    BX_PCI_THIS pci_conf[i] = 0x00;
+  // C200 also has PAM registers at 0x80-0x86 (native location)
   if (BX_PCI_THIS chipset == BX_PCI_CHIPSET_I6_C200) {
-    // C200 uses PAM registers at 0x80-0x86
     for (i=0x80; i<=0x86; i++)
-      BX_PCI_THIS pci_conf[i] = 0x00;
-  } else {
-    // i430FX/i440FX/i440BX use PAM registers at 0x59-0x5F
-    for (i=0x59; i<0x60; i++)
       BX_PCI_THIS pci_conf[i] = 0x00;
   }
   for (i = 0; i <= BX_MEM_AREA_F0000; i++) {
@@ -402,10 +400,8 @@ void bx_pci_bridge_c::pci_write_handler(Bit8u address, Bit32u value, unsigned io
       case 0x5D:
       case 0x5E:
       case 0x5F:
-        // PAM registers - C200 uses different mechanism (in MCHBAR)
-        if (BX_PCI_THIS chipset == BX_PCI_CHIPSET_I6_C200) {
-          break;
-        }
+        // PAM registers at 0x59-0x5F (i430FX/i440FX/i440BX style)
+        // C200 also accepts these for compatibility
         if (value8 != oldval) {
           BX_PCI_THIS pci_conf[address+i] = value8;
           if ((address+i) == 0x59) {
