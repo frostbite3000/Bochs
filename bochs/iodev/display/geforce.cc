@@ -251,12 +251,18 @@ void bx_geforce_c::svga_init_members()
   BX_GEFORCE_THIS mc_enable = 0;
   BX_GEFORCE_THIS bus_intr = 0;
   BX_GEFORCE_THIS bus_intr_en = 0;
+  BX_GEFORCE_THIS fifo_wait = false;
+  BX_GEFORCE_THIS fifo_wait_soft = false;
+  BX_GEFORCE_THIS fifo_wait_notify = false;
+  BX_GEFORCE_THIS fifo_wait_flip = false;
+  BX_GEFORCE_THIS fifo_wait_acquire = false;
   BX_GEFORCE_THIS fifo_intr = 0;
   BX_GEFORCE_THIS fifo_intr_en = 0;
   BX_GEFORCE_THIS fifo_ramht = 0;
   BX_GEFORCE_THIS fifo_ramfc = 0;
   BX_GEFORCE_THIS fifo_ramro = 0;
   BX_GEFORCE_THIS fifo_mode = 0;
+  BX_GEFORCE_THIS fifo_cache1_push0 = 0;
   BX_GEFORCE_THIS fifo_cache1_push1 = 0;
   BX_GEFORCE_THIS fifo_cache1_put = 0;
   BX_GEFORCE_THIS fifo_cache1_dma_push = 0;
@@ -290,6 +296,9 @@ void bx_geforce_c::svga_init_members()
   BX_GEFORCE_THIS graph_status = 0;
   BX_GEFORCE_THIS graph_trapped_addr = 0;
   BX_GEFORCE_THIS graph_trapped_data = 0;
+  BX_GEFORCE_THIS graph_flip_read = 0;
+  BX_GEFORCE_THIS graph_flip_write = 0;
+  BX_GEFORCE_THIS graph_flip_modulo = 0;
   BX_GEFORCE_THIS graph_notify = 0;
   BX_GEFORCE_THIS graph_fifo = 0;
   BX_GEFORCE_THIS graph_bpixel = 0;
@@ -308,8 +317,6 @@ void bx_geforce_c::svga_init_members()
   BX_GEFORCE_THIS ramdac_vpll_b = 0;
   BX_GEFORCE_THIS ramdac_pll_select = 0;
   BX_GEFORCE_THIS ramdac_general_control = 0;
-
-  BX_GEFORCE_THIS acquire_active = false;
 
   memset(BX_GEFORCE_THIS chs, 0x00, sizeof(BX_GEFORCE_THIS chs));
   for (int i = 0; i < GEFORCE_CHANNEL_COUNT; i++) {
@@ -371,6 +378,7 @@ void bx_geforce_c::svga_init_members()
   memset(BX_GEFORCE_THIS s.memory, 0x00, BX_GEFORCE_THIS s.memsize);
   BX_GEFORCE_THIS disp_ptr = BX_GEFORCE_THIS s.memory;
   BX_GEFORCE_THIS disp_offset = 0;
+  BX_GEFORCE_THIS disp_end_offset = 0;
 
   // VCLK defaults after reset
   BX_GEFORCE_THIS s.vclk[0] = 25180000;
@@ -494,10 +502,10 @@ void bx_geforce_c::vertical_timer()
       BX_GEFORCE_THIS crtc_intr_en, BX_GEFORCE_THIS mc_intr_en));
     update_irq_level();
   }
-  if (BX_GEFORCE_THIS acquire_active) {
-    BX_GEFORCE_THIS acquire_active = false;
-    for (int i = 0; i < GEFORCE_CHANNEL_COUNT; i++)
-      fifo_process(i);
+  if (BX_GEFORCE_THIS fifo_wait_acquire) {
+    BX_GEFORCE_THIS fifo_wait_acquire = false;
+    update_fifo_wait();
+    fifo_process();
   }
 }
 
@@ -668,14 +676,14 @@ void bx_geforce_c::mem_write(bx_phy_address addr, Bit8u value)
 {
   if ((addr >= BX_GEFORCE_THIS pci_bar[1].addr) &&
       (addr < (BX_GEFORCE_THIS pci_bar[1].addr + BX_GEFORCE_THIS s.memsize))) {
-    unsigned x, y;
     Bit32u offset = addr & BX_GEFORCE_THIS memsize_mask;
     BX_GEFORCE_THIS s.memory[offset] = value;
-    if (BX_GEFORCE_THIS svga_pitch != 0) {
+    if (offset < BX_GEFORCE_THIS disp_end_offset &&
+        offset >= BX_GEFORCE_THIS disp_offset) {
       BX_GEFORCE_THIS svga_needs_update_tile = 1;
       offset -= BX_GEFORCE_THIS disp_offset;
-      x = (offset % BX_GEFORCE_THIS svga_pitch) / (BX_GEFORCE_THIS svga_bpp / 8);
-      y = offset / BX_GEFORCE_THIS svga_pitch;
+      Bit32u x = (offset % BX_GEFORCE_THIS svga_pitch) / (BX_GEFORCE_THIS svga_bpp / 8);
+      Bit32u y = offset / BX_GEFORCE_THIS svga_pitch;
       if (BX_GEFORCE_THIS s.y_doublescan)
         y <<= 1;
       if (BX_GEFORCE_THIS svga_double_width)
@@ -1233,6 +1241,7 @@ void bx_geforce_c::update(void)
     BX_GEFORCE_THIS svga_dispbpp = iBpp;
     BX_GEFORCE_THIS disp_ptr = BX_GEFORCE_THIS s.memory + iTopOffset;
     BX_GEFORCE_THIS disp_offset = iTopOffset;
+    BX_GEFORCE_THIS disp_end_offset = iTopOffset + iPitch * iHeight;
     BX_GEFORCE_THIS svga_pitch = iPitch;
     // compatibilty settings for VGA core
     BX_GEFORCE_THIS s.last_xres = iWidth;
@@ -2844,8 +2853,8 @@ void bx_geforce_c::sifm(gf_channel* ch, bool swizzled)
       BX_GEFORCE_THIS redraw_area_nd(redraw_offset, dwidth, dheight);
     }
   } else {
-    Bit32s sx0 = ((ch->sifm_syx & 0xFFFF) << 16) - (dx << 20) - 0x80000;
-    Bit32s sy = (ch->sifm_syx & 0xFFFF0000) - (dy << 20) - 0x80000;
+    Bit32s sx0 = ((ch->sifm_syx & 0xFFFF) << 16) - 0x80000;
+    Bit32s sy = (ch->sifm_syx & 0xFFFF0000) - 0x80000;
     if (sx0 < 0)
       sx0 = 0;
     if (sy < 0)
@@ -2907,6 +2916,48 @@ bool bx_geforce_c::d3d_scissor_clip(gf_channel* ch,
     *y = BX_MAX((Bit32s)*y, scissor_y1);
     *width = BX_MIN(surf_x2, scissor_x2) - *x;
     *height = BX_MIN(surf_y2, scissor_y2) - *y;
+  }
+  return true;
+}
+
+bool bx_geforce_c::d3d_viewport_clip(gf_channel* ch,
+  Bit32u* x, Bit32u* y, Bit32u* width, Bit32u* height)
+{
+  if (BX_GEFORCE_THIS card_type >= 0x35) {
+    Bit32s surf_x2 = *x + *width;
+    Bit32s surf_y2 = *y + *height;
+    Bit32s viewport_x1 = (Bit32s)ch->d3d_viewport_x + ch->d3d_window_offset_x;
+    Bit32s viewport_y1 = (Bit32s)ch->d3d_viewport_y + ch->d3d_window_offset_y;
+    Bit32s viewport_x2 = viewport_x1 + (Bit32s)ch->d3d_viewport_width;
+    Bit32s viewport_y2 = viewport_y1 + (Bit32s)ch->d3d_viewport_height;
+    if (viewport_x1 >= surf_x2 || viewport_x2 <= (Bit32s)*x ||
+        viewport_y1 >= surf_y2 || viewport_y2 <= (Bit32s)*y)
+      return false;
+    *x = BX_MAX((Bit32s)*x, viewport_x1);
+    *y = BX_MAX((Bit32s)*y, viewport_y1);
+    *width = BX_MIN(surf_x2, viewport_x2) - *x;
+    *height = BX_MIN(surf_y2, viewport_y2) - *y;
+  }
+  return true;
+}
+
+bool bx_geforce_c::d3d_window_clip(gf_channel* ch,
+  Bit32u* x, Bit32u* y, Bit32u* width, Bit32u* height)
+{
+  if (BX_GEFORCE_THIS card_type >= 0x35) {
+    Bit32s surf_x2 = *x + *width;
+    Bit32s surf_y2 = *y + *height;
+    Bit32s window_x1 = (Bit32s)ch->d3d_window_clip_x1[0] + ch->d3d_window_offset_x;
+    Bit32s window_y1 = (Bit32s)ch->d3d_window_clip_y1[0] + ch->d3d_window_offset_y;
+    Bit32s window_x2 = (Bit32s)ch->d3d_window_clip_x2[0] + ch->d3d_window_offset_x + 1;
+    Bit32s window_y2 = (Bit32s)ch->d3d_window_clip_y2[0] + ch->d3d_window_offset_y + 1;
+    if (window_x1 >= surf_x2 || window_x2 <= (Bit32s)*x ||
+        window_y1 >= surf_y2 || window_y2 <= (Bit32s)*y)
+      return false;
+    *x = BX_MAX((Bit32s)*x, window_x1);
+    *y = BX_MAX((Bit32s)*y, window_y1);
+    *width = BX_MIN(surf_x2, window_x2) - *x;
+    *height = BX_MIN(surf_y2, window_y2) - *y;
   }
   return true;
 }
@@ -2993,7 +3044,8 @@ void texture_process_format(gf_texture* tex)
       tex->unnormalized = true;
     tex->format &= 0x9f;
   } else if (tex->format == 0x12 ||
-             tex->format == 0x1b) {
+             tex->format == 0x1b ||
+             tex->format == 0x1e) {
     tex->linear = true;
     tex->unnormalized = true;
   }
@@ -3022,6 +3074,7 @@ void texture_process_format(gf_texture* tex)
   else if (tex->format == 0x06 ||   // A8R8G8B8
            tex->format == 0x07 ||   // X8R8G8B8
            tex->format == 0x12 ||   // A8R8G8B8
+           tex->format == 0x1e ||   // X8R8G8B8
            tex->format == 0x85)     // A8R8G8B8
     tex->color_bytes = 4;
   else
@@ -3440,7 +3493,8 @@ void bx_geforce_c::d3d_sample_texture(gf_channel* ch,
       color_scale[3] = 1.0f / 255.0f;
       break;
     }
-    case 0x07: { // X8R8G8B8
+    case 0x07:
+    case 0x1e: { // X8R8G8B8
       Bit32u value = dma_read32(tex->dma_obj, tex_ofs);
       color_int[0] = 1;
       color_scale[0] = 1.0f;
@@ -4176,15 +4230,22 @@ void bx_geforce_c::d3d_pixel_shader(gf_channel* ch,
           Bit32u tex_unit = (dst_word >> 17) & 0xf;
           gf_texture* tex = &ch->d3d_texture[tex_unit];
           d3d_sample_texture(ch, tex, params[0], op_result);
+          if (((dst_word >> 21) & 1) != 0)
+            for (int comp_index = 0; comp_index < 4; comp_index++)
+              op_result[comp_index] = op_result[comp_index] * 2.0f - 1.0f;
           break;
         }
         case 0x18: { // TXP
-          params[0][0] /= params[0][3];
-          params[0][1] /= params[0][3];
-          params[0][2] /= params[0][3];
+          float winv = 1.0f / params[0][3];
+          params[0][0] *= winv;
+          params[0][1] *= winv;
+          params[0][2] *= winv;
           Bit32u tex_unit = (dst_word >> 17) & 0xf;
           gf_texture* tex = &ch->d3d_texture[tex_unit];
           d3d_sample_texture(ch, tex, params[0], op_result);
+          if (((dst_word >> 21) & 1) != 0)
+            for (int comp_index = 0; comp_index < 4; comp_index++)
+              op_result[comp_index] = op_result[comp_index] * 2.0f - 1.0f;
           break;
         }
         case 0x1a: { // RCP
@@ -4239,6 +4300,9 @@ void bx_geforce_c::d3d_pixel_shader(gf_channel* ch,
           Bit32u tex_unit = (dst_word >> 17) & 0xf;
           gf_texture* tex = &ch->d3d_texture[tex_unit];
           d3d_sample_texture(ch, tex, coords, op_result);
+          if (((dst_word >> 21) & 1) != 0)
+            for (int comp_index = 0; comp_index < 4; comp_index++)
+              op_result[comp_index] = op_result[comp_index] * 2.0f - 1.0f;
           break;
         }
         case 0x38: { // DP2
@@ -4569,12 +4633,13 @@ void bx_geforce_c::d3d_triangle(gf_channel* ch, Bit32u base)
       }
     }
   }
-  for (Bit32u v = 0; v < 3; v++) {
-    for (Bit32u i = 0; i < 2; i++) {
-      float* color = vs_out[v][ch->d3d_attrib_out_color[i]];
-      for (Bit32u ci = 0; ci < 4; ci++)
-        color[ci] = BX_MIN(BX_MAX(color[ci], 0.0f), 1.0f);
-    }
+  for (Bit32u i = 0; i < 2; i++) {
+    if (ch->d3d_attrib_out_enable[i])
+      for (Bit32u v = 0; v < 3; v++) {
+        float* color = vs_out[v][ch->d3d_attrib_out_color[i]];
+        for (Bit32u ci = 0; ci < 4; ci++)
+          color[ci] = BX_MIN(BX_MAX(color[ci], 0.0f), 1.0f);
+      }
   }
   bool clipped[3];
   Bit32u clip_count = 0;
@@ -4687,6 +4752,10 @@ void bx_geforce_c::d3d_triangle_clipped(gf_channel* ch, float v0[16][4], float v
     return; // overflow
   Bit32u draw_width = draw_x2 - draw_x1;
   Bit32u draw_height = draw_y2 - draw_y1;
+  if (!d3d_window_clip(ch, &draw_x1, &draw_y1, &draw_width, &draw_height))
+    return;
+  if (!d3d_viewport_clip(ch, &draw_x1, &draw_y1, &draw_width, &draw_height))
+    return;
   if (!d3d_scissor_clip(ch, &draw_x1, &draw_y1, &draw_width, &draw_height))
     return;
   Bit32u pitch = ch->d3d_surface_pitch_a & 0xFFFF;
@@ -4719,6 +4788,9 @@ void bx_geforce_c::d3d_triangle_clipped(gf_channel* ch, float v0[16][4], float v
         ps_in[i + 4][comp_index] = v0[ch->d3d_attrib_out_tex_coord[i]][comp_index];
   float xy[2];
   xy[1] = draw_y1 + 0.5f;
+  float b012inv = 1.0f / b012;
+  bool stencil_test_enable = ch->d3d_stencil_test_enable && ch->d3d_depth_bytes != 2;
+  bool zstencil_enable = ch->d3d_depth_test_enable || stencil_test_enable;
   for (Bit16u y = 0; y < draw_height; y++, xy[1]++) {
     xy[0] = draw_x1 + 0.5f;
     for (Bit16u x = 0; x < draw_width; x++, xy[0]++) {
@@ -4746,12 +4818,12 @@ void bx_geforce_c::d3d_triangle_clipped(gf_channel* ch, float v0[16][4], float v
         if (b2 > 0.0f)
           continue;
       }
-      b0 /= b012;
-      b1 /= b012;
-      b2 /= b012;
+      b0 *= b012inv;
+      b1 *= b012inv;
+      b2 *= b012inv;
       Bit32u z_new;
-      Bit8u stencil;
-      if (ch->d3d_depth_test_enable || ch->d3d_stencil_test_enable) {
+      Bit8u stencil = 0x00;
+      if (zstencil_enable) {
         Bit32u z_prev;
         if (ch->d3d_depth_bytes == 2)
           z_prev = dma_read16(ch->d3d_zeta_obj, draw_offset_zeta + x * 2);
@@ -4772,7 +4844,7 @@ void bx_geforce_c::d3d_triangle_clipped(gf_channel* ch, float v0[16][4], float v
           depth_test_pass = compare(ch->d3d_depth_func, z_new, z_prev);
         } else
           depth_test_pass = true;
-        if (ch->d3d_stencil_test_enable) {
+        if (stencil_test_enable) {
           bool stencil_test_pass = compare(ch->d3d_stencil_func,
             ch->d3d_stencil_func_ref & ch->d3d_stencil_func_mask,
             stencil & ch->d3d_stencil_func_mask);
@@ -4855,7 +4927,7 @@ void bx_geforce_c::d3d_triangle_clipped(gf_channel* ch, float v0[16][4], float v
         d3d_register_combiners(ch, ps_in, tmp_regs16[0]);
       } else if (ch->d3d_shader_obj != 0) {
         ps_in[0][0] = xy[0] - ch->d3d_window_offset_x;
-        ps_in[0][1] = (ch->d3d_viewport_vertical >> 16) - (xy[1] - ch->d3d_window_offset_y);
+        ps_in[0][1] = ch->d3d_viewport_height - (xy[1] - ch->d3d_window_offset_y);
         ps_in[0][2] = 0.0f;
         d3d_pixel_shader(ch, ps_in, tmp_regs16, tmp_regs32);
       }
@@ -5046,27 +5118,28 @@ void unpack_attribute(Bit32u value, bool d3d, float comp[4])
 
 void bx_geforce_c::d3d_load_vertex(gf_channel* ch, Bit32u index)
 {
+  Bit32u index_adj = ch->d3d_vertex_data_base_index + index;
   for (Bit32u attrib_index = 0; attrib_index < ch->d3d_attrib_count; attrib_index++) {
     Bit32u array_offset = ch->d3d_vertex_data_array_offset[attrib_index];
     Bit32u array_obj = array_offset & 0x80000000 ?
       ch->d3d_vertex_b_obj : ch->d3d_vertex_a_obj;
     array_offset &= 0x7fffffff;
     array_offset -= ramin_read32(array_obj) >> 20; // why?
-    Bit32u format_type = ch->d3d_vertex_data_array_format_type[attrib_index];
-    Bit32u comp_count = ch->d3d_vertex_data_array_format_size[attrib_index];
     Bit32u attrib_stride = ch->d3d_vertex_data_array_format_stride[attrib_index];
+    array_offset += index_adj * attrib_stride;
+    Bit32u comp_count = ch->d3d_vertex_data_array_format_size[attrib_index];
     if (comp_count != 0) {
       ch->d3d_vertex_data[ch->d3d_vertex_index][attrib_index][2] = 0.0f;
       ch->d3d_vertex_data[ch->d3d_vertex_index][attrib_index][3] = 1.0f;
     }
+    Bit32u format_type = ch->d3d_vertex_data_array_format_type[attrib_index];
     if ((format_type == 0 || format_type == 4) && comp_count == 4) {
-      Bit32u value = dma_read32(array_obj, array_offset + index * attrib_stride);
+      Bit32u value = dma_read32(array_obj, array_offset);
       unpack_attribute(value, format_type == 0,
         ch->d3d_vertex_data[ch->d3d_vertex_index][attrib_index]);
     } else {
       for (Bit32u comp_index = 0; comp_index < comp_count; comp_index++) {
-        Bit32u ui32 = dma_read32(array_obj, array_offset +
-          index * attrib_stride + comp_index * 4);
+        Bit32u ui32 = dma_read32(array_obj, array_offset + comp_index * 4);
         ch->d3d_vertex_data[ch->d3d_vertex_index][
           attrib_index][comp_index] = uint32_as_float(ui32);
       }
@@ -5654,6 +5727,7 @@ void bx_geforce_c::execute_d3d(gf_channel* ch, Bit32u cls, Bit32u method, Bit32u
   } u;
   u.param_integer = param;
 
+  if (method <= 0x085) { // [1] Workaround for "compiler limit: blocks nested too deeply"
   if (method == 0x000) {
     // There may be better place for initialization
     if (cls == 0x0096) {
@@ -5703,6 +5777,8 @@ void bx_geforce_c::execute_d3d(gf_channel* ch, Bit32u cls, Bit32u method, Bit32u
     }
     ch->d3d_attrib_out_color[0] = 3;
     ch->d3d_attrib_out_color[1] = 4;
+    for (int j = 0; j < 32; j++)
+      ch->d3d_attrib_out_enable[j] = true;
     for (int j = 0; j < 16; j++) {
       ch->d3d_attrib_in_tex_coord[j] = 0xf;
       ch->d3d_attrib_out_tex_coord[j] = 0xf;
@@ -5720,6 +5796,20 @@ void bx_geforce_c::execute_d3d(gf_channel* ch, Bit32u cls, Bit32u method, Bit32u
         ch->d3d_attrib_out_tex_coord[j] = j + 8;
       else
         ch->d3d_attrib_out_tex_coord[j] = j + 7;
+    }
+  } else if (method == 0x048)
+    BX_GEFORCE_THIS graph_flip_read = param;
+  else if (method == 0x049)
+    BX_GEFORCE_THIS graph_flip_write = param;
+  else if (method == 0x04a)
+    BX_GEFORCE_THIS graph_flip_modulo = param;
+  else if (method == 0x04b) {
+    BX_GEFORCE_THIS graph_flip_write++;
+    BX_GEFORCE_THIS graph_flip_write %= BX_GEFORCE_THIS graph_flip_modulo;
+  } else if (method == 0x04c) {
+    if (BX_GEFORCE_THIS graph_flip_read == BX_GEFORCE_THIS graph_flip_write) {
+      BX_GEFORCE_THIS fifo_wait_flip = true;
+      BX_GEFORCE_THIS fifo_wait = true;
     }
   } else if (method == 0x061)
     ch->d3d_a_obj = param;
@@ -5781,7 +5871,8 @@ void bx_geforce_c::execute_d3d(gf_channel* ch, Bit32u cls, Bit32u method, Bit32u
     ch->d3d_surface_color_offset = param;
   else if (method == 0x085)
     ch->d3d_surface_zeta_offset = param;
-  else if (method == 0x08b && cls > 0x0497)
+  } else { // [2] Workaround for "compiler limit: blocks nested too deeply"
+  if (method == 0x08b && cls > 0x0497)
     ch->d3d_surface_pitch_z = param;
   else if ((method >= 0x098 && method <= 0x099 && cls == 0x0096) ||
            (method >= 0x098 && method <= 0x09f && cls == 0x0097)) {
@@ -5794,6 +5885,15 @@ void bx_geforce_c::execute_d3d(gf_channel* ch, Bit32u cls, Bit32u method, Bit32u
   } else if (method == 0x0ae && cls >= 0x0497) {
     ch->d3d_window_offset_x = (Bit16s)param;
     ch->d3d_window_offset_y = (Bit16s)(param >> 16);
+  } else if (method >= 0x0b0 && method <= 0x0bf && cls >= 0x0497) {
+    Bit32u index = (method >> 1) & 7;
+    if ((method & 1) == 0) {
+      ch->d3d_window_clip_x1[index] = param & 0x0000ffff;
+      ch->d3d_window_clip_x2[index] = param >> 16;
+    } else {
+      ch->d3d_window_clip_y1[index] = param & 0x0000ffff;
+      ch->d3d_window_clip_y2[index] = param >> 16;
+    }
   } else if ((method == 0x0c0 && cls <= 0x0097) ||
              (method == 0x0c1 && cls >= 0x0497))
     ch->d3d_alpha_test_enable = param;
@@ -5959,9 +6059,11 @@ void bx_geforce_c::execute_d3d(gf_channel* ch, Bit32u cls, Bit32u method, Bit32u
     else if (rc_method == 5)
       ch->d3d_combiner_color_ocw[stage] = param;
   } else if (method == 0x280 && cls >= 0x0497) {
-    ch->d3d_viewport_horizontal = param;
+    ch->d3d_viewport_x = param & 0x0000ffff;
+    ch->d3d_viewport_width = param >> 16;
   } else if (method == 0x281 && cls >= 0x0497) {
-    ch->d3d_viewport_vertical = param;
+    ch->d3d_viewport_y = param & 0x0000ffff;
+    ch->d3d_viewport_height = param >> 16;
   } else if ((method >= 0x1a8 && method <= 0x1ad && cls == 0x0096) ||
              (method >= 0x278 && method <= 0x27d && cls == 0x0097) ||
              (method >= 0x500 && method <= 0x505 && cls == 0x0497)) {
@@ -6118,6 +6220,8 @@ void bx_geforce_c::execute_d3d(gf_channel* ch, Bit32u cls, Bit32u method, Bit32u
              (method >= 0x5a0 && method <= 0x5af && cls >= 0x0497)) {
     Bit32u i = method - (cls == 0x0097 ? 0x5c8 : 0x5a0);
     ch->d3d_vertex_data_array_offset[i] = param;
+  } else if (method == 0x5cf && cls > 0x0497) {
+    ch->d3d_vertex_data_base_index = param;
   } else if ((method >= 0x340 && method <= 0x34f && cls == 0x0096) ||
              (method >= 0x5d8 && method <= 0x5e7 && cls == 0x0097) ||
              (method >= 0x5d0 && method <= 0x5df && cls >= 0x0497)) {
@@ -6367,6 +6471,10 @@ void bx_geforce_c::execute_d3d(gf_channel* ch, Bit32u cls, Bit32u method, Bit32u
     ch->d3d_semaphore_offset = param;
   else if (method == 0x75c) {
     dma_write32(ch->d3d_semaphore_obj, ch->d3d_semaphore_offset, param);
+  } else if (method == 0x75d) {
+    // Semaphore release mechanism should be used instead
+    BX_GEFORCE_THIS crtc_start = param;
+    BX_GEFORCE_THIS svga_needs_update_mode = 1;
   } else if (method == 0x763) {
     ch->d3d_zstencil_clear_value = param;
   } else if (method == 0x764) {
@@ -6400,11 +6508,16 @@ void bx_geforce_c::execute_d3d(gf_channel* ch, Bit32u cls, Bit32u method, Bit32u
   } else if (method == 0x7f3 && cls > 0x0497) {
     for (Bit32u i = 0; i < 2; i++)
       ch->d3d_attrib_out_tex_coord[i + 8] = (param >> (i * 4)) & 0xf;
+  } else if (method == 0x7fd && cls > 0x0497) {
+    for (Bit32u i = 0; i < 32; i++)
+      ch->d3d_attrib_out_enable[i] = (bool)((param >> i) & 1);
   }
+  } // [3] Workaround for "compiler limit: blocks nested too deeply"
 }
 
-bool bx_geforce_c::execute_command(Bit32u chid, Bit32u subc, Bit32u method, Bit32u param)
+int bx_geforce_c::execute_command(Bit32u chid, Bit32u subc, Bit32u method, Bit32u param)
 {
+  int result = 0;
   bool software_method = false;
   BX_DEBUG(("execute_command: chid 0x%02x, subc 0x%02x, method 0x%03x, param 0x%08x",
     chid, subc, method, param));
@@ -6490,10 +6603,8 @@ bool bx_geforce_c::execute_command(Bit32u chid, Bit32u subc, Bit32u method, Bit3
           ch->s2d_img_src = (srcdst & 0xFFFF) << 4;
           ch->s2d_img_dst = srcdst >> 16 << 4;
         } else {
-          ch->s2d_img_src =
-            ramin_read32(ch->schs[subc].object + 0x8) << 4;
-          ch->s2d_img_dst =
-            ramin_read32(ch->schs[subc].object + 0xC) << 4;
+          ch->s2d_img_src = ramin_read32(ch->schs[subc].object + 0x8) << 4;
+          ch->s2d_img_dst = ramin_read32(ch->schs[subc].object + 0xC) << 4;
         }
       } else if (cls8 == 0x64) {
         ch->iifc_palette =
@@ -6530,8 +6641,9 @@ bool bx_geforce_c::execute_command(Bit32u chid, Bit32u subc, Bit32u method, Bit3
     Bit32u semaphore_offset = BX_GEFORCE_THIS fifo_cache1_semaphore >> 20;
     if (method == 0x01a) {
       if (dma_read32(semaphore_obj, semaphore_offset) != param) {
-        BX_GEFORCE_THIS acquire_active = true;
-        return false;
+        BX_GEFORCE_THIS fifo_wait_acquire = true;
+        BX_GEFORCE_THIS fifo_wait = true;
+        result = 2;
       }
     } else {
       dma_write32(semaphore_obj, semaphore_offset, param);
@@ -6605,6 +6717,8 @@ bool bx_geforce_c::execute_command(Bit32u chid, Bit32u subc, Bit32u method, Bit3
         case 0x96:
         case 0x97:
           execute_d3d(ch, cls, method, param);
+          if (BX_GEFORCE_THIS fifo_wait_flip)
+            result = 1;
           break;
       }
       if (ch->notify_pending) {
@@ -6628,12 +6742,11 @@ bool bx_geforce_c::execute_command(Bit32u chid, Bit32u subc, Bit32u method, Bit3
             BX_GEFORCE_THIS graph_ctx_switch2 = notifier << 16;
           else
             BX_GEFORCE_THIS graph_ctx_switch1 = notifier;
-          BX_GEFORCE_THIS graph_ctx_switch4 =
-            ch->schs[subc].object >> 4;
-          if (BX_GEFORCE_THIS card_type >= 0x40)
-            BX_GEFORCE_THIS graph_ctxctl_cur = BX_GEFORCE_THIS fifo_grctx_instance;
+          BX_GEFORCE_THIS graph_ctx_switch4 = ch->schs[subc].object >> 4;
           BX_GEFORCE_THIS graph_trapped_addr = (method << 2) | (subc << 16) | (chid << 20);
           BX_GEFORCE_THIS graph_trapped_data = param;
+          BX_GEFORCE_THIS fifo_wait_notify = true;
+          BX_GEFORCE_THIS fifo_wait = true;
           BX_DEBUG(("execute_command: notify interrupt triggered"));
         }
       }
@@ -6649,6 +6762,8 @@ bool bx_geforce_c::execute_command(Bit32u chid, Bit32u subc, Bit32u method, Bit3
     }
   }
   if (software_method) {
+    BX_GEFORCE_THIS fifo_wait_soft = true;
+    BX_GEFORCE_THIS fifo_wait = true;
     BX_GEFORCE_THIS fifo_intr |= 0x00000001;
     update_irq_level();
     BX_GEFORCE_THIS fifo_cache1_pull0 |= 0x00000100;
@@ -6658,12 +6773,37 @@ bool bx_geforce_c::execute_command(Bit32u chid, Bit32u subc, Bit32u method, Bit3
     if (BX_GEFORCE_THIS fifo_cache1_put == GEFORCE_CACHE1_SIZE * 4)
       BX_GEFORCE_THIS fifo_cache1_put = 0;
     BX_DEBUG(("execute_command: software method"));
+    result = 1;
   }
-  return true;
+  return result;
+}
+
+void bx_geforce_c::update_fifo_wait()
+{
+  BX_GEFORCE_THIS fifo_wait =
+    BX_GEFORCE_THIS fifo_wait_soft ||
+    BX_GEFORCE_THIS fifo_wait_notify ||
+    BX_GEFORCE_THIS fifo_wait_flip ||
+    BX_GEFORCE_THIS fifo_wait_acquire;
+}
+
+void bx_geforce_c::fifo_process()
+{
+  Bit32u offset = (BX_GEFORCE_THIS fifo_cache1_push1 & 0x1f) + 1;
+  for (Bit32u i = 0; i < GEFORCE_CHANNEL_COUNT; i++)
+    fifo_process((i + offset) & 0x1f);
 }
 
 void bx_geforce_c::fifo_process(Bit32u chid)
 {
+  if (BX_GEFORCE_THIS fifo_wait)
+    return;
+  if ((BX_GEFORCE_THIS fifo_mode & (1 << chid)) == 0)
+    return;
+  if ((BX_GEFORCE_THIS fifo_cache1_push0 & 1) == 0)
+    return;
+  if ((BX_GEFORCE_THIS fifo_cache1_pull0 & 1) == 0)
+    return;
   Bit32u oldchid = BX_GEFORCE_THIS fifo_cache1_push1 & 0x1F;
   if (oldchid == chid) {
     if (BX_GEFORCE_THIS fifo_cache1_dma_put == BX_GEFORCE_THIS fifo_cache1_dma_get)
@@ -6690,11 +6830,17 @@ void bx_geforce_c::fifo_process(Bit32u chid)
     BX_GEFORCE_THIS fifo_cache1_dma_instance = ramfc_read32(chid, 0xC);
     if (BX_GEFORCE_THIS card_type >= 0x20)
       BX_GEFORCE_THIS fifo_cache1_semaphore = ramfc_read32(chid, sro);
-    if (BX_GEFORCE_THIS card_type >= 0x40)
+    if (BX_GEFORCE_THIS card_type >= 0x40) {
       BX_GEFORCE_THIS fifo_grctx_instance = ramfc_read32(chid, 0x38);
+      BX_GEFORCE_THIS graph_ctxctl_cur = BX_GEFORCE_THIS fifo_grctx_instance | 0x01000000;
+    }
     BX_GEFORCE_THIS fifo_cache1_push1 = (BX_GEFORCE_THIS fifo_cache1_push1 & ~0x1F) | chid;
   }
   BX_GEFORCE_THIS fifo_cache1_dma_push |= 0x100;
+  if (BX_GEFORCE_THIS fifo_cache1_dma_instance == 0) {
+    BX_PANIC(("fifo: DMA instance = 0"));
+    return;
+  }
   gf_channel* ch = &BX_GEFORCE_THIS chs[chid];
   while (BX_GEFORCE_THIS fifo_cache1_dma_get != BX_GEFORCE_THIS fifo_cache1_dma_put) {
     BX_DEBUG(("fifo: processing at 0x%08x", BX_GEFORCE_THIS fifo_cache1_dma_get));
@@ -6703,13 +6849,17 @@ void bx_geforce_c::fifo_process(Bit32u chid)
       BX_GEFORCE_THIS fifo_cache1_dma_get);
     BX_GEFORCE_THIS fifo_cache1_dma_get += 4;
     if (ch->dma_state.mcnt) {
-      if (!execute_command(chid, ch->dma_state.subc, ch->dma_state.mthd, word)) {
+      int cmd_result = execute_command(chid,
+        ch->dma_state.subc, ch->dma_state.mthd, word);
+      if (cmd_result <= 1) {
+        if (!ch->dma_state.ni)
+          ch->dma_state.mthd++;
+        ch->dma_state.mcnt--;
+      } else {
         BX_GEFORCE_THIS fifo_cache1_dma_get -= 4;
-        break;
       }
-      if (!ch->dma_state.ni)
-        ch->dma_state.mthd++;
-      ch->dma_state.mcnt--;
+      if (cmd_result != 0)
+        break;
     } else {
       if ((word & 0xe0000003) == 0x20000000) {
         // old jump
@@ -6824,6 +6974,8 @@ Bit32u bx_geforce_c::register_read32(Bit32u address)
       value = 0x00000000;
   } else if (address == 0x2504) {
     value = BX_GEFORCE_THIS fifo_mode;
+  } else if (address == 0x3200) {
+    value = BX_GEFORCE_THIS fifo_cache1_push0;
   } else if (address == 0x3204) {
     value = BX_GEFORCE_THIS fifo_cache1_push1;
   } else if (address == 0x3210) {
@@ -7075,7 +7227,14 @@ void bx_geforce_c::register_write32(Bit32u address, Bit32u value)
   } else if (address == 0x2220 && BX_GEFORCE_THIS card_type >= 0x40) {
     BX_GEFORCE_THIS fifo_ramfc = value;
   } else if (address == 0x2504) {
+    bool process = (BX_GEFORCE_THIS fifo_mode | value) != BX_GEFORCE_THIS fifo_mode;
     BX_GEFORCE_THIS fifo_mode = value;
+    if (process)
+      fifo_process();
+  } else if (address == 0x3200) {
+    BX_GEFORCE_THIS fifo_cache1_push0 = value;
+    if ((BX_GEFORCE_THIS fifo_cache1_push0 & 1) != 0)
+      fifo_process();
   } else if (address == 0x3204) {
     BX_GEFORCE_THIS fifo_cache1_push1 = value;
   } else if (address == 0x3210) {
@@ -7092,6 +7251,8 @@ void bx_geforce_c::register_write32(Bit32u address, Bit32u value)
     BX_GEFORCE_THIS fifo_cache1_ref_cnt = value;
   } else if (address == 0x3250) {
     BX_GEFORCE_THIS fifo_cache1_pull0 = value;
+    if ((BX_GEFORCE_THIS fifo_cache1_pull0 & 1) != 0)
+      fifo_process();
   } else if (address == 0x3270) {
     BX_GEFORCE_THIS fifo_cache1_get = value & (GEFORCE_CACHE1_SIZE * 4 - 1);
     if (BX_GEFORCE_THIS fifo_cache1_get != BX_GEFORCE_THIS fifo_cache1_put) {
@@ -7099,6 +7260,11 @@ void bx_geforce_c::register_write32(Bit32u address, Bit32u value)
     } else {
       BX_GEFORCE_THIS fifo_intr &= ~0x00000001;
       BX_GEFORCE_THIS fifo_cache1_pull0 &= ~0x00000100;
+      if (BX_GEFORCE_THIS fifo_wait_soft) {
+        BX_GEFORCE_THIS fifo_wait_soft = false;
+        update_fifo_wait();
+        fifo_process();
+      }
     }
     update_irq_level();
   } else if (address == 0x32e0) {
@@ -7133,6 +7299,11 @@ void bx_geforce_c::register_write32(Bit32u address, Bit32u value)
   } else if (address == 0x400100) {
     BX_GEFORCE_THIS graph_intr &= ~value;
     update_irq_level();
+    if (BX_GEFORCE_THIS fifo_wait_notify && BX_GEFORCE_THIS graph_intr == 0) {
+      BX_GEFORCE_THIS fifo_wait_notify = false;
+      update_fifo_wait();
+      fifo_process();
+    }
   } else if (address == 0x400108) {
     BX_GEFORCE_THIS graph_nsource = value;
   } else if ((address == 0x40013C && BX_GEFORCE_THIS card_type >= 0x40) ||
@@ -7155,6 +7326,17 @@ void bx_geforce_c::register_write32(Bit32u address, Bit32u value)
     BX_GEFORCE_THIS graph_trapped_data = value;
   } else if (address == 0x400718) {
     BX_GEFORCE_THIS graph_notify = value;
+  } else if (address == 0x40071c) {
+    if ((value & 0x00000002) != 0) {
+      BX_GEFORCE_THIS graph_flip_read++;
+      BX_GEFORCE_THIS graph_flip_read %= BX_GEFORCE_THIS graph_flip_modulo;
+      if (BX_GEFORCE_THIS fifo_wait_flip &&
+          BX_GEFORCE_THIS graph_flip_read != BX_GEFORCE_THIS graph_flip_write) {
+        BX_GEFORCE_THIS fifo_wait_flip = false;
+        update_fifo_wait();
+        fifo_process();
+      }
+    }
   } else if (address == 0x400720) {
     BX_GEFORCE_THIS graph_fifo = value;
   } else if (address == 0x400724) {

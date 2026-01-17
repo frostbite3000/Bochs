@@ -215,6 +215,10 @@ struct gf_channel
   Bit32u d3d_surface_pitch_z;
   Bit16s d3d_window_offset_x;
   Bit16s d3d_window_offset_y;
+  Bit32u d3d_window_clip_x1[8];
+  Bit32u d3d_window_clip_x2[8];
+  Bit32u d3d_window_clip_y1[8];
+  Bit32u d3d_window_clip_y2[8];
   Bit32u d3d_surface_color_offset;
   Bit32u d3d_surface_zeta_offset;
   Bit32u d3d_combiner_alpha_icw[8];
@@ -268,8 +272,10 @@ struct gf_channel
   float d3d_specular_params[6];
   float d3d_specular_power;
   float d3d_scene_ambient_color[4];
-  Bit32u d3d_viewport_horizontal;
-  Bit32u d3d_viewport_vertical;
+  Bit32u d3d_viewport_x;
+  Bit32u d3d_viewport_width;
+  Bit32u d3d_viewport_y;
+  Bit32u d3d_viewport_height;
   float d3d_viewport_offset[4];
   float d3d_combiner_const_color[8][2][4];
   Bit32u d3d_combiner_alpha_ocw[8];
@@ -286,6 +292,7 @@ struct gf_channel
   float d3d_diffuse_color[4];
   float d3d_texcoord[4][4];
   Bit32u d3d_attrib_count;
+  Bit32u d3d_vertex_data_base_index;
   Bit32u d3d_vertex_data_array_offset[16];
   Bit32u d3d_vertex_data_array_format_type[16];
   Bit32u d3d_vertex_data_array_format_size[16];
@@ -319,6 +326,7 @@ struct gf_channel
   Bit32u d3d_attrib_out_color[2];
   Bit32u d3d_attrib_in_tex_coord[16];
   Bit32u d3d_attrib_out_tex_coord[16];
+  bool d3d_attrib_out_enable[32];
   Bit32u d3d_vs_temp_regs_count;
   Bit32u d3d_tex_coord_count;
 
@@ -469,8 +477,10 @@ private:
 
   BX_GEFORCE_SMF void ramht_lookup(Bit32u handle, Bit32u chid, Bit32u* object, Bit8u* engine);
 
+  BX_GEFORCE_SMF void update_fifo_wait();
+  BX_GEFORCE_SMF void fifo_process();
   BX_GEFORCE_SMF void fifo_process(Bit32u chid);
-  BX_GEFORCE_SMF bool execute_command(Bit32u chid, Bit32u subc, Bit32u method, Bit32u param);
+  BX_GEFORCE_SMF int execute_command(Bit32u chid, Bit32u subc, Bit32u method, Bit32u param);
 
   BX_GEFORCE_SMF void update_color_bytes_s2d(gf_channel* ch);
   BX_GEFORCE_SMF void update_color_bytes_ifc(gf_channel* ch);
@@ -515,6 +525,8 @@ private:
   BX_GEFORCE_SMF void sifm(gf_channel* ch, bool swizzled);
 
   BX_GEFORCE_SMF bool d3d_scissor_clip(gf_channel* ch, Bit32u* x, Bit32u* y, Bit32u* width, Bit32u* height);
+  BX_GEFORCE_SMF bool d3d_viewport_clip(gf_channel* ch, Bit32u* x, Bit32u* y, Bit32u* width, Bit32u* height);
+  BX_GEFORCE_SMF bool d3d_window_clip(gf_channel* ch, Bit32u* x, Bit32u* y, Bit32u* width, Bit32u* height);
   BX_GEFORCE_SMF void d3d_clear_surface(gf_channel* ch);
   BX_GEFORCE_SMF void d3d_sample_texture(gf_channel* ch,
     gf_texture* tex, float coords_in[3], float color[4]);
@@ -539,12 +551,18 @@ private:
   Bit32u mc_enable;
   Bit32u bus_intr;
   Bit32u bus_intr_en;
+  bool fifo_wait;
+  bool fifo_wait_soft;
+  bool fifo_wait_notify;
+  bool fifo_wait_flip;
+  bool fifo_wait_acquire;
   Bit32u fifo_intr;
   Bit32u fifo_intr_en;
   Bit32u fifo_ramht;
   Bit32u fifo_ramfc;
   Bit32u fifo_ramro;
   Bit32u fifo_mode;
+  Bit32u fifo_cache1_push0;
   Bit32u fifo_cache1_push1;
   Bit32u fifo_cache1_put;
   Bit32u fifo_cache1_dma_push;
@@ -578,6 +596,9 @@ private:
   Bit32u graph_status;
   Bit32u graph_trapped_addr;
   Bit32u graph_trapped_data;
+  Bit32u graph_flip_read;
+  Bit32u graph_flip_write;
+  Bit32u graph_flip_modulo;
   Bit32u graph_notify;
   Bit32u graph_fifo;
   Bit32u graph_bpixel;
@@ -599,8 +620,6 @@ private:
 
   bx_bitblt_rop_t rop_handler[0x100];
   Bit8u rop_flags[0x100];
-
-  bool acquire_active;
 
   gf_channel chs[GEFORCE_CHANNEL_COUNT];
 
@@ -627,6 +646,7 @@ private:
 
   Bit8u *disp_ptr;
   Bit32u disp_offset;
+  Bit32u disp_end_offset;
   Bit32u bank_base[2];
 
   struct {
