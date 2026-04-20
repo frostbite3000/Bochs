@@ -277,8 +277,8 @@ memory: guest=512, host=256, block_size=512
 #=======================================================================
 romimage: file=$BXSHARE/BIOS-bochs-latest, options=fastboot
 #romimage: file=$BXSHARE/BIOS-bochs-legacy
-#romimage: file=$BXSHARE/bios.bin-1.13.0 # http://www.seabios.org/SeaBIOS
-#romimage: file=$BXSHARE/i440fx.bin, flash_data=escd.bin
+#romimage: file=$BXSHARE/SeaBIOS/bios.bin-1.13.0 # http://www.seabios.org/SeaBIOS
+#romimage: file=$BXSHARE/i440fx/i440fx.bin, flash_data=escd.bin
 #romimage: file=asus_p6np5.bin, flash_data=escd.bin
 #romimage: file=mybios.bin, address=0xfff80000 # 512k at memory top
 
@@ -297,10 +297,10 @@ romimage: file=$BXSHARE/BIOS-bochs-latest, options=fastboot
 # VGAROMIMAGE
 # You now need to load a VGA ROM BIOS into C0000.
 #=======================================================================
-vgaromimage: file=$BXSHARE/VGABIOS-lgpl-latest.bin
-#vgaromimage: file=bios/VGABIOS-lgpl-latest-cirrus.bin
+vgaromimage: file=$BXSHARE/VGABIOS-lgpl/VGABIOS-lgpl-latest.bin
+#vgaromimage: file=bios/VGABIOS-lgpl/VGABIOS-lgpl-latest-cirrus.bin
 #vgaromimage: file=$BXSHARE/vgabios-cirrus.bin-1.13.0 # http://www.seabios.org/SeaVGABIOS
-#vgaromimage: file=bios/VGABIOS-elpin-2.40
+#vgaromimage: file=bios/VGABIOS-elpin/VGABIOS-elpin-2.40
 
 #=======================================================================
 # OPTROMIMAGE[1-4]:
@@ -651,7 +651,7 @@ ata3: enabled=0, ioaddr1=0x168, ioaddr2=0x360, irq=9
 #
 # This defines the type and characteristics of all attached ata devices:
 #   type=       type of attached device [disk|cdrom]
-#   mode=       only valid for disks [flat|concat|dll|sparse|vmware3|vmware4]
+#   mode=       only valid for disks [flat|concat|dll|sparse|vmware3|vmware4|vhdx]
 #                                    [undoable|growing|volatile|vpc|vbox|vvfat]
 #   path=       path of the image / directory
 #   cylinders=  only valid for disks
@@ -796,16 +796,26 @@ debug: action=ignore
 #debug: action=ignore, pci=report # report BX_DEBUG from module 'pci'
 
 #=======================================================================
-# DEBUGGER_LOG:
-# Give the path of the log file you'd like Bochs to log debugger output.
-# If you really don't want it, make it /dev/null or '-'. :^(
+# DEBUGGER:
+# This defines the parameters of the Bochs internal debugger:
 #
-# Examples:
-#   debugger_log: ./debugger.out
+#  LOG:
+#  Give the path of the log file you'd like Bochs to log debugger output.
+#  If you really don't want it, make it /dev/null or '-'. :^(
+#
+#  GUI:
+#  If this parameter is set to 'true' or '1' the debugger gui is used instead
+#  of the command line version. The special value 'globalini' enables the gui
+#  and forces the usage of an ini file from BXSHARE path. The gui parameter is
+#  available only if Bochs is built with debugger gui support and the debugger
+#  is activated with the command line option '-dbg'.
+#
+# Example:
+#   debugger: log=./debugger.out, gui=true
 #=======================================================================
-#debugger_log: /dev/null
-#debugger_log: debugger.out
-debugger_log: -
+#debugger: log=/dev/null
+#debugger: log=debugger.out
+debugger: log=-
 
 #=======================================================================
 # COM1, COM2, COM3, COM4:

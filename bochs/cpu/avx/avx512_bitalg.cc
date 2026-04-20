@@ -202,7 +202,7 @@ void BX_CPP_AttrRegparmN(1) BX_CPU_C::VPSHUFBITQMB_MASK_KGqHdqWdqR(bxInstruction
     Bit64u src = op1.vmm64u(n), ctrl = op2.vmm64u(n);
 
     Bit32u tmp = 0;
-    for (unsigned i=0; i < 7; i++) {
+    for (unsigned i=0; i < 8; i++) {
       tmp |= Bit32u((src >> (ctrl & 0x3F)) & 0x1) << i;
       ctrl >>= 8;
     }

@@ -350,6 +350,7 @@ public:
   const char **get_choices() { return choices; }
   const char *get_selected() { return choices[val.number - min]; }
   int find_by_name(const char *s);
+  void set_choices(const char **choices, Bit64s initial_val, Bit64s value_base = 0);
   virtual void set(Bit64s val);
   bool set_by_name(const char *s);
   void set_dependent_list(bx_list_c *l, bool enable_all);
@@ -451,20 +452,21 @@ public:
 };
 
 class BOCHSAPI bx_shadow_data_c : public bx_param_c {
-  Bit32u data_size;
+  // Keep this 64-bit so checkpoint blobs (notably memory.ram) can exceed 4GB.
+  Bit64u data_size;
   Bit8u *data_ptr;
   bool is_text;
 public:
   bx_shadow_data_c(bx_param_c *parent,
       const char *name,
       Bit8u *ptr_to_data,
-      Bit32u data_size, bool is_text=0);
+      Bit64u data_size, bool is_text=0);
   Bit8u *getptr() {return data_ptr;}
   const Bit8u *getptr() const {return data_ptr;}
-  Bit32u get_size() const {return data_size;}
+  Bit64u get_size() const {return data_size;}
   bool is_text_format() const {return is_text;}
-  Bit8u get(Bit32u index);
-  void set(Bit32u index, Bit8u value);
+  Bit8u get(Bit64u index);
+  void set(Bit64u index, Bit8u value);
 };
 
 typedef void (*filedata_save_handler)(void *devptr, FILE *save_fp);

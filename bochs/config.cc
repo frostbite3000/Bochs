@@ -87,7 +87,6 @@ static Bit64s bx_param_handler(bx_param_c *param, bool set, Bit64s val)
 {
   char pname[BX_PATHNAME_LEN];
   Bit8u device;
-  Bit64s oldval;
 
   bx_list_c *base = (bx_list_c*) param->get_parent();
   base->get_param_path(pname, BX_PATHNAME_LEN);
@@ -116,10 +115,15 @@ static Bit64s bx_param_handler(bx_param_c *param, bool set, Bit64s val)
     param->get_param_path(pname, BX_PATHNAME_LEN);
     if (!strcmp(pname, BXPN_VGA_EXTENSION)) {
       if (set) {
-        oldval = ((bx_param_enum_c*)param)->get();
-        if (val != oldval) {
-          PLUG_unload_opt_plugin(vga_extension_plugins[(Bit8u)oldval]);
-          PLUG_load_plugin_var(vga_extension_plugins[(Bit8u)val], PLUGTYPE_VGA);
+        const char *oldplug = vga_extension_plugins[(Bit8u)((bx_param_enum_c*)param)->get()];
+        const char *newplug = vga_extension_plugins[(Bit8u)val];
+        if (strcmp(newplug, oldplug)) {
+          PLUG_unload_opt_plugin(oldplug);
+          if (!PLUG_load_plugin_var(newplug, PLUGTYPE_VGA)) {
+            val = ((bx_param_enum_c*)param)->get();
+          }
+        } else if (!PLUG_device_present(newplug, true)) {
+          PLUG_load_plugin_var(newplug, PLUGTYPE_VGA);
         }
       }
     } else if ((!strcmp(pname, BXPN_FLOPPYA_DEVTYPE)) ||
@@ -218,15 +222,13 @@ void bx_init_std_nic_options(const char *name, bx_list_c *menu)
 void bx_init_usb_options(const char *usb_name, const char *pname, int maxports, int param0)
 {
   char group[16], name[8], descr[512], label[512];
-  bx_list_c *usb, *usbrt, *deplist, *deplist2;
+  bx_list_c *deplist, *deplist2;
 
-  bx_list_c *ports = (bx_list_c*)SIM->get_param("ports");
-  usb = (bx_list_c*)ports->get_by_name("usb");
-  if (usb == NULL) {
-    usb = new bx_list_c(ports, "usb", "USB Configuration");
-    usb->set_options(usb->USE_TAB_WINDOW | usb->SHOW_PARENT);
+  bx_list_c *usb = (bx_list_c*)SIM->get_param("usb");
+  bx_list_c *rtmenu = (bx_list_c*)SIM->get_param("menu.runtime");
+  bx_list_c *usbrt = (bx_list_c*)rtmenu->get_by_name("usb");
+  if (usbrt == NULL) {
     // prepare runtime options
-    bx_list_c *rtmenu = (bx_list_c*)SIM->get_param("menu.runtime");
     usbrt = new bx_list_c(rtmenu, "usb", "USB options");
     usbrt->set_runtime_param(1);
     usbrt->set_options(usbrt->SHOW_PARENT | usbrt->USE_TAB_WINDOW);
@@ -234,7 +236,15 @@ void bx_init_usb_options(const char *usb_name, const char *pname, int maxports, 
   sprintf(group, "USB %s", usb_name);
   sprintf(label, "%s Configuration", usb_name);
   bx_list_c *menu = new bx_list_c(usb, pname, label);
-  menu->set_options(menu->SHOW_PARENT);
+#if BX_WITH_WX
+  if (maxports > 4) {
+    menu->set_options(menu->SHOW_PARENT | menu->USE_SCROLL_WINDOW);
+  }
+  else
+#endif
+  {
+    menu->set_options(menu->SHOW_PARENT);
+  }
   sprintf(label, "Enable %s emulation", usb_name);
   sprintf(descr, "Enables the %s emulation", usb_name);
   bx_param_bool_c *enabled = new bx_param_bool_c(menu, "enabled", label, descr, 1);
@@ -526,7 +536,14 @@ void bx_init_options()
   // general options subtree
   menu = new bx_list_c(root_param, "general", "");
 
- // config interface option, set in bochsrc or command line
+  // Active config file name after loading/saving configuration
+  new bx_param_filename_c(menu,
+      "bochsrc",
+      "Active configuration file",
+      "",
+      "", BX_PATHNAME_LEN);
+
+  // config interface option, set in bochsrc or command line
   bx_init_config_interface_list();
   bx_param_enum_c *sel_config = new bx_param_enum_c(menu,
     "config_interface", "Configuration interface",
@@ -1016,14 +1033,25 @@ void bx_init_options()
       10);
   vga_update_freq->set_ask_format ("Type a new value for VGA update frequency: [%d] ");
 
+  bx_list_c *vgaext = new bx_list_c(display, "vgaext", "VGA extension");
+  vgaext->set_options(vgaext->SERIES_ASK);
   bx_init_vgaext_list();
-  bx_param_enum_c *vga_extension = new bx_param_enum_c(display,
-      "vga_extension",
+  bx_param_enum_c *vga_extension = new bx_param_enum_c(vgaext,
+      "extension",
       "VGA Extension",
       "Name of the VGA extension",
       vga_extension_names,
       BX_VGA_EXTENSION_VBE, BX_VGA_EXTENSION_NONE);
   vga_extension->set_handler(bx_param_handler);
+  // Dummy option for model selection (replaced by extension code)
+  bx_param_enum_c *vgaext_model = new bx_param_enum_c(vgaext,
+      "model",
+      "Model",
+      "",
+      NULL,
+      0, 0);
+  vgaext_model->set_enabled(0);
+  vga_extension->set(BX_VGA_EXTENSION_VBE);
 
   static const char *ddc_mode_list[] = {
     "disabled",
@@ -1048,24 +1076,6 @@ void bx_init_options()
   ddc_mode->set_dependent_list(deplist, 0);
   ddc_mode->set_dependent_bitmap(BX_DDC_MODE_FILE, 1);
 
-  static const char *vbe_memsize_list[] = {
-    "4",
-    "8",
-    "16",
-    "32",
-    NULL
-  };
-  bx_param_enum_c *vbe_memsize = new bx_param_enum_c(display,
-      "vbe_memsize",
-      "VBE memory size (MB)",
-      "Size of VBE memory in MB",
-      vbe_memsize_list,
-      BX_VBE_MEMSIZE_16MB, BX_VBE_MEMSIZE_4MB);
-
-  deplist = new bx_list_c(NULL);
-  deplist->add(vbe_memsize);
-  vga_extension->set_dependent_list(deplist, 0);
-  vga_extension->set_dependent_bitmap(BX_VGA_EXTENSION_VBE, 1);
   display->set_options(display->SHOW_PARENT);
 
   // keyboard & mouse subtree
@@ -1521,36 +1531,32 @@ void bx_init_options()
   menu->set_options(menu->SHOW_PARENT);
 
 #ifdef WIN32
-  // disk menu for win32paramdlg
-  bx_param_c *disk_menu2_init_list[] = {
-    SIM->get_param("floppy"),
-    SIM->get_param("ata.0"),
-#if BX_MAX_ATA_CHANNEL>1
-    SIM->get_param("ata.1"),
-#endif
-#if BX_MAX_ATA_CHANNEL>2
-    SIM->get_param("ata.2"),
-#endif
-#if BX_MAX_ATA_CHANNEL>3
-    SIM->get_param("ata.3"),
-#endif
+  // floppy/boot menu for win32paramdlg
+  bx_param_c *floppy_boot_init_list[] = {
+    SIM->get_param(BXPN_FLOPPYA),
+    SIM->get_param(BXPN_FLOPPYB),
     SIM->get_param("boot_params"),
     NULL
   };
-  menu = new bx_list_c(special_menus, "disk_win32", "Bochs Disk Options", disk_menu2_init_list);
+  menu = new bx_list_c(special_menus, "floppy_boot", "Bochs Disk Options", floppy_boot_init_list);
   menu->set_options(menu->USE_TAB_WINDOW);
 #endif
 
   // ports subtree
-  bx_list_c *ports = new bx_list_c(root_param, "ports", "Serial / Parallel / USB Options");
+  bx_list_c *ports = new bx_list_c(root_param, "ports", "Serial / Parallel Options");
   ports->set_options(ports->USE_TAB_WINDOW | ports->SHOW_PARENT);
+  // parallel / serial options initialized in the device plugin code
+
 #if BX_SUPPORT_PCIUSB
+  // USB subtree
+  bx_list_c *usb = new bx_list_c(root_param, "usb", "USB Configuration");
+  usb->set_options(ports->USE_TAB_WINDOW | ports->SHOW_PARENT);
   bx_usbdev_ctl.init();
 #if BX_USB_DEBUGGER
-  bx_init_usb_debug_options(ports);
+  bx_init_usb_debug_options(usb);
 #endif
+  // USB options initialized in the device plugin code
 #endif
-  // parallel / serial / USB options initialized in the device plugin code
 
 #if BX_NETWORKING
   // network subtree
@@ -1628,14 +1634,17 @@ void bx_init_options()
       0);
 
 #if BX_SUPPORT_IODEBUG
-// iodebug all rings
-  new bx_param_bool_c(misc,
-      "iodebug_all_rings",
+  bx_list_c *iodebug = new bx_list_c(misc, "iodebug", "I/O interface to debugger");
+  // iodebug all rings
+  new bx_param_bool_c(iodebug,
+      "all_rings",
       "Enable iodebug ports for all rings",
       "I/O Interface to Bochs Debugger plugin for all rings",
       0);
+  SIM->get_param(BXPN_IODEBUG_ALL_RINGS)->set_enabled(0); // eanbled by -dbg command line option
 #endif
 
+#if BX_GDBSTUB
   // GDB stub
   menu = new bx_list_c(misc, "gdbstub", "GDB Stub Options");
   menu->set_options(menu->SHOW_PARENT | menu->USE_BOX_TITLE);
@@ -1671,6 +1680,7 @@ void bx_init_options()
     0, BX_MAX_BIT32U,
     0);
   enabled->set_dependent_list(menu->clone());
+#endif
 
 #if BX_PLUGINS
   // user-defined options subtree
@@ -1705,13 +1715,16 @@ void bx_init_options()
       "-", BX_PATHNAME_LEN);
   path->set_ask_format("Enter debugger log filename: [%s] ");
   path->set_extension("log");
-  path->set_enabled(BX_DEBUGGER);
+  path->set_enabled(0); // eanbled by -dbg command line option
 
   // runtime options
   menu = new bx_list_c(special_menus, "runtime", "Runtime options");
   bx_list_c *cdrom = new bx_list_c(menu, "cdrom", "CD-ROM options");
   cdrom->set_runtime_param(1);
   cdrom->set_options(cdrom->SHOW_PARENT);
+  sound = new bx_list_c(menu, "sound", "Sound options");
+  sound->set_options(cdrom->SHOW_PARENT);
+  sound->set_runtime_param(1);
   // misc runtime options
   misc = new bx_list_c(menu, "misc", "Misc options");
   misc->set_runtime_param(1);
@@ -1797,6 +1810,7 @@ int bx_read_configuration(const char *rcfile)
     BX_PANIC (("reading from %s failed", rcfile));
     return -1;
   }
+  SIM->get_param_string(BXPN_BOCHSRC_FILE_NAME)->set(rcfile);
   // update log actions
   for (int level=0; level<N_LOGLEV; level++) {
     int action = SIM->get_default_log_action(level);
@@ -2412,15 +2426,7 @@ int bx_split_option_list(const char *msg, const char *rawopt, char **argv, int m
 
 bool is_deprecated_option(const char *oldparam, const char **newparam)
 {
-  if ((!strcmp(oldparam, "keyboard_serial_delay")) ||
-             (!strcmp(oldparam, "keyboard_paste_delay")) ||
-             (!strcmp(oldparam, "keyboard_type")) ||
-             (!strcmp(oldparam, "keyboard_mapping")) ||
-             (!strcmp(oldparam, "keyboardmapping"))) {
-    // replaced v2.6 / removed v2.6.7
-    *newparam = "keyboard";
-    return 1;
-  } else if (!strcmp(oldparam, "user_shortcut")) {
+  if (!strcmp(oldparam, "user_shortcut")) {
     // replaced v2.6.1 / removed v2.6.9
     *newparam = "keyboard";
     return 1;
@@ -2434,6 +2440,12 @@ bool is_deprecated_option(const char *oldparam, const char **newparam)
   } else if (!strcmp(oldparam, "user_plugin")) {
     // replaced / removed after v2.6.11
     *newparam = "plugin_ctrl";
+    return 1;
+#endif
+#if BX_DEBUGGER
+  } else if (!strcmp(oldparam, "debugger_log")) {
+    // replaced / removed after v3.0
+    *newparam = "debugger";
     return 1;
 #endif
   }
@@ -2748,11 +2760,6 @@ static int parse_line_formatted(const char *context, int num_params, char *param
       PARSE_ERR(("%s: logprefix directive has wrong # args.", context));
     }
     SIM->get_param_string(BXPN_LOG_PREFIX)->set(params[1]);
-  } else if (!strcmp(params[0], "debugger_log")) {
-    if (num_params != 2) {
-      PARSE_ERR(("%s: debugger_log directive has wrong # args.", context));
-    }
-    SIM->get_param_string(BXPN_DEBUGGER_LOG_FILENAME)->set(params[1]);
   } else if (!strcmp(params[0], "panic")) {
     if (num_params < 2) {
       PARSE_ERR(("%s: panic directive malformed.", context));
@@ -2923,7 +2930,7 @@ static int parse_line_formatted(const char *context, int num_params, char *param
           SIM->get_param_string(BXPN_DDC_FILE)->set(strval+5);
         }
       } else if (!strncmp(params[i], "vbe_memsize=", 12)) {
-        SIM->get_param_enum(BXPN_VBE_MEMSIZE)->set_by_name(&params[i][12]);
+        SIM->get_param_enum(BXPN_VGA_EXT_MODEL)->set_by_name(&params[i][12]);
       } else {
         PARSE_ERR(("%s: vga directive malformed.", context));
       }
@@ -3151,7 +3158,7 @@ static int parse_line_formatted(const char *context, int num_params, char *param
     if (strncmp(params[1], "enabled=", 8)) {
       PARSE_ERR(("%s: magic_break directive malformed.", context));
     }
-    if (params[1][8] == '0') {
+    if ((params[1][8] == '0') || (!bx_dbg.debugger_active)) {
       BX_INFO(("Ignoring magic break points"));
     } else if (params[1][8] == '1') {
       bx_dbg_set_magic_bp_mask(bx_dbg_get_magic_bp_mask_from_str(params[1]));
@@ -3188,6 +3195,31 @@ static int parse_line_formatted(const char *context, int num_params, char *param
         PARSE_ERR(("%s: port_e9_hack directive malformed.", context));
       }
     }
+  } else if (!strcmp(params[0], "debugger")) {
+#if BX_DEBUGGER
+    for (i=1; i<num_params; i++) {
+      if (!strncmp(params[i], "log=", 4)) {
+        SIM->get_param_string(BXPN_DEBUGGER_LOG_FILENAME)->set(&params[i][4]);
+      } else if (!strncmp(params[i], "gui=", 4)) {
+#if BX_DEBUGGER_GUI
+        if (params[i][4] == '0' || !strcmp(&params[i][4], "false")) {
+          bx_dbg.debugger_gui = false;
+        } else if (params[i][4] == '1' || !strcmp(&params[i][4], "true")) {
+          bx_dbg.debugger_gui = true;
+        } else if (!strcmp(&params[i][4], "globalini")) {
+          bx_dbg.debugger_gui = true;
+          bx_dbg.dbg_gui_globalini = true;
+        }
+#else
+        PARSE_WARN(("%s: Bochs debugger gui not available", context));
+#endif
+      } else {
+        PARSE_WARN(("%s: unknown parameter for debugger ignored.", context));
+      }
+    }
+#else
+    PARSE_WARN(("%s: Bochs is not compiled with internal debugger support", context));
+#endif
   } else if (!strcmp(params[0], "iodebug")) {
 #if BX_SUPPORT_IODEBUG
     if (num_params != 2) {
@@ -3447,8 +3479,23 @@ int bx_write_log_options(FILE *fp, bx_list_c *base)
 int bx_write_debugger_options(FILE *fp)
 {
 #if BX_DEBUGGER
-  fprintf(fp, "debugger_log: %s\n", SIM->get_param_string(BXPN_DEBUGGER_LOG_FILENAME)->getptr());
-  fprintf(fp, "magic_break: enabled=1 0x%x\n", bx_dbg.magic_break);
+  char str[40];
+  fprintf(fp, "debugger: log=%s, gui=", SIM->get_param_string(BXPN_DEBUGGER_LOG_FILENAME)->getptr());
+#if BX_DEBUGGER_GUI
+  if (bx_dbg.debugger_gui) {
+    if (bx_dbg.dbg_gui_globalini) {
+      fprintf(fp, "globalini\n");
+    } else {
+      fprintf(fp, "true\n");
+    }
+  }
+  else
+#endif
+  {
+    fprintf(fp, "false\n");
+  }
+  bx_dbg_get_magic_bp_str_from_mask(bx_dbg.magic_break, str);
+  fprintf(fp, "magic_break: enabled=%d%s\n", bx_dbg.magic_break != 0, str);
   // TODO: debug symbols
 #endif
 #if BX_GDBSTUB
@@ -3554,7 +3601,10 @@ int bx_write_configuration(const char *rc, int overwrite)
   if (SIM->get_param_enum(BXPN_DDC_MODE)->get() == BX_DDC_MODE_FILE) {
     fprintf(fp, ":%s", SIM->get_param_string(BXPN_DDC_FILE)->getptr());
   }
-  fprintf(fp, ", vbe_memsize=%s\n", SIM->get_param_enum(BXPN_VBE_MEMSIZE)->get_selected());
+  if (!strcmp(SIM->get_param_enum(BXPN_VGA_EXTENSION)->get_selected(), "vbe")) {
+    fprintf(fp, ", vbe_memsize=%s", SIM->get_param_enum(BXPN_VGA_EXT_MODEL)->get_selected());
+  }
+  fprintf(fp, "\n");
 #if BX_SUPPORT_SMP
   fprintf(fp, "cpu: count=%u:%u:%u, ips=%u, quantum=%d, ",
     SIM->get_param_num(BXPN_CPU_NPROCESSORS)->get(), SIM->get_param_num(BXPN_CPU_NCORES)->get(),
@@ -3601,5 +3651,7 @@ int bx_write_configuration(const char *rc, int overwrite)
   bx_write_param_list(fp, (bx_list_c*) SIM->get_param(BXPN_USB_DEBUG), "usb_debug", 0);
 #endif
   fclose(fp);
+  // store name of current config
+  SIM->get_param_string(BXPN_BOCHSRC_FILE_NAME)->set(rc);
   return 0;
 }

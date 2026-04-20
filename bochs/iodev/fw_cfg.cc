@@ -24,8 +24,10 @@
 
 #define BX_PLUGGABLE
 
-#define NEED_CPU_REG_SHORTCUTS 1
 #include "iodev.h"
+#if BX_SUPPORT_VMX
+#include "cpu/cpu.h"
+#endif
 #include "fw_cfg.h"
 #include "acpi_tables.h"
 
@@ -125,6 +127,9 @@ void bx_fw_cfg_c::init(void)
     // mark unused plugin for removal
     ((bx_param_bool_c*)((bx_list_c*)SIM->get_param(BXPN_PLUGIN_CTRL))->get_by_name("fw_cfg"))->set(0);
     return;
+  }
+  if (SIM->get_param_enum(BXPN_PCI_CHIPSET)->get() != BX_PCI_CHIPSET_I440FX) {
+    BX_PANIC(("The fw_cfg device only supports the i440FX chipset"));
   }
   // Initialize all entries
   for (int i = 0; i < FW_CFG_MAX_ENTRY; i++) {
@@ -229,6 +234,15 @@ void bx_fw_cfg_c::reset(unsigned type)
   cur_entry = FW_CFG_INVALID;
   cur_offset = 0;
   dma_addr = 0;
+
+  // The Bochs BIOS enables VMX on its own. External firmware uses fw_cfg,
+  // whose reset callback runs after CPU reset, so allow VMX here first.
+#if BX_SUPPORT_VMX
+  for (unsigned cpu = 0; cpu < BX_SMP_PROCESSORS; cpu++) {
+    BX_CPU(cpu)->allowVmxForFirmware();
+  }
+#endif
+
   first_reset = false;
 }
 

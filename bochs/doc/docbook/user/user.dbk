@@ -3670,7 +3670,7 @@ this feature yet.
 <para>
 Examples:
 <screen>
-  vgaromimage: file=bios/VGABIOS-elpin-2.40
+  vgaromimage: file=bios/VGABIOS-elpin/VGABIOS-elpin-2.40
   vgaromimage: file=$BXSHARE/VGABIOS-lgpl-latest.bin
   vgaromimage: file=$BXSHARE/VGABIOS-lgpl-latest-cirrus.bin
 </screen>
@@ -4122,7 +4122,7 @@ This defines the type and characteristics of all attached ata devices:
 <row>
   <entry> mode  </entry>
   <entry> image type, only valid for disks </entry>
-  <entry> [flat | concat | dll | sparse | vmware3 | vmware4 | undoable | growing | volatile | vpc | vbox | vvfat ]</entry>
+  <entry> [flat | concat | dll | sparse | vmware3 | vmware4 | vhdx | undoable | growing | volatile | vpc | vbox | vvfat ]</entry>
 </row>
 <row> <entry> cylinders </entry> <entry> only valid for disks </entry> </row>
 <row> <entry> heads </entry> <entry> only valid for disks </entry> </row>
@@ -4209,6 +4209,9 @@ vmware3 : vmware version 3 disk support
 </para></listitem>
 <listitem><para>
 vmware4 : vmware version 4 disk support (aka VMDK)
+</para></listitem>
+<listitem><para>
+vhdx : VHDX disk support
 </para></listitem>
 <listitem><para>
 undoable : read-only base file with commitable redolog
@@ -4367,16 +4370,30 @@ problem like "could not find hard drive image."
 </tip>
 </section>
 
-<section><title>debugger_log</title>
+<section><title>debugger</title>
 <para>
 Examples:
 <screen>
-  debugger_log: debugger.out
-  debugger_log: /dev/null              (Unix only)
-  debugger_log: -
+  debugger: log=debugger.out, gui=true
+  debugger: log=/dev/null              (Unix only)
+  debugger: log=-
 </screen>
+</para>
+<para>
+This defines the parameters of the Bochs internal debugger.
+</para>
+<para><command>log</command></para>
+<para>
 Give the path of the log file you'd like Bochs to log debugger output.
-If you really don't want it, make it '/dev/null', or '-'.
+If you really don't want it, make it /dev/null or '-'.
+</para>
+<para><command>gui</command></para>
+<para>
+If this parameter is set to 'true' or '1' the debugger gui is used instead
+of the command line version. The special value 'globalini' enables the gui
+and forces the usage of an ini file from BXSHARE path. The gui parameter is
+available only if Bochs is built with debugger gui support and the debugger
+is activated with the command line option '-dbg'.
 </para>
 </section>
 
@@ -7726,17 +7743,13 @@ For example:
 </screen>
 </para>
 <para>
-At runtime you need to add the value <option>gui_debug</option> to the
-<link linkend="bochsopt-displaylibrary">display_library</link> options parameter
-in order to use the GUI instead of the command line debugger. This example shows
-how to use it with the 'x' GUI:
-<screen>
-display_library: x, options="gui_debug"
-</screen>
+At runtime you need use the command line option <option>-dbg_gui</option> or the
+command option <option>-dbg</option> in combination with the <option>gui</option>
+parameter of the <option>debugger</option> bochsrc option in order to use the GUI
+instead of the command line debugger.
 </para>
-<note><para>The wxWidgets port of Bochs always uses this debugger GUI. Passing
-the option to the display library is not necessary, since the command line
-interface is not available then.
+<note><para>The wxWidgets port of Bochs always uses this debugger GUI, since the
+command line interface is not available then.
 </para></note>
 <section><title>Overview</title>
 <para>
@@ -10144,6 +10157,11 @@ If unspecified, the default "mode" is flat.
        vmware version 4 (VMDK) compatibility
        </entry>
  </row>
+ <row> <entry> vhdx </entry> <entry> VHDX disk support </entry>
+       <entry>
+       VHDX compatibility
+       </entry>
+ </row>
  <row> <entry> undoable </entry> <entry> read-only base file with a commitable redolog </entry>
        <entry>
        commitable, rollbackable
@@ -10484,8 +10502,8 @@ Only vmware versions 3 and 4 disk image files are supported.
     An undoable disk is based on a read-only image, associated
     with a growing redolog, that contains all changes (writes)
     made to the base image content. Currently, base images of
-    types 'flat', 'sparse', 'growing', 'vmware3', 'vmware4' and
-    'vpc' are supported.
+    types 'flat', 'sparse', 'growing', 'vmware3', 'vmware4',
+    'vpc' and 'vhdx' are supported.
 </para>
 <para>
     This redolog is dynamically created at runtime, if it does not
@@ -10636,8 +10654,8 @@ Be sure to enter "growing" when selecting the image type.
     A volatile disk is based on a read-only image, associated with
     a growing redolog, that contains all changes (writes)
     made to the base image content. Currently, base images of
-    types 'flat', 'sparse', 'growing', 'vmware3', 'vmware4', 'vpc' and
-    'vbox' are supported.
+    types 'flat', 'sparse', 'growing', 'vmware3', 'vmware4', 'vpc',
+    'vhdx and ''vbox' are supported.
 </para>
 <para>
     The redolog is dynamically created at runtime, when
@@ -10978,6 +10996,11 @@ Other arguments:
     <entry>Yes</entry>
   </row>
   <row>
+    <entry>vhdx</entry>
+    <entry>Yes</entry>
+    <entry>Yes</entry>
+  </row>
+  <row>
     <entry>growing</entry>
     <entry>Yes</entry>
     <entry>Yes</entry>
@@ -11042,8 +11065,8 @@ suffix ".orig".
 <para>
 This function can be used to determine the disk image format, geometry
 and size. Note that Bochs can only detect the formats growing, sparse,
-vmware3, vmware4, vpc and vbox correctly. Other images with a file size
-multiple of 512 are treated as flat ones. If the image doesn't support
+vmware3, vmware4, vpc vbox and vhdx correctly. Other images with a file
+size multiple of 512 are treated as flat ones. If the image doesn't support
 returning the geometry, the cylinders are calculated based on 16 heads
 and 63 sectors per track.
 </para>
@@ -11364,7 +11387,7 @@ cpu: count=1, ips=50000000, reset_on_triple_fault=1, ignore_bad_msrs=1
 cpu: cpuid_limit_winnt=0
 clock: sync=realtime, time0=local
 memory: guest=512, host=512
-vgaromimage: file=D:/path/to/your/bios/VGABIOS-lgpl-latest-cirrus.bin
+vgaromimage: file=D:/path/to/your/bios/VGABIOS-lgpl/VGABIOS-lgpl-latest-cirrus.bin
 vga: extension=cirrus, update_freq=5
 pci: enabled=1, chipset=i440fx, slot1=cirrus
 </screen>
@@ -11385,7 +11408,7 @@ cpu: count=1, ips=55000000, reset_on_triple_fault=1, ignore_bad_msrs=1
 cpu: cpuid_limit_winnt=0
 clock: sync=realtime, time0=local
 memory: guest=512, host=512
-vgaromimage: file=D:/path/to/your/bios/VGABIOS-lgpl-latest-cirrus.bin
+vgaromimage: file=D:/path/to/your/bios/VGABIOS-lgpl/VGABIOS-lgpl-latest-cirrus.bin
 vga: extension=cirrus, update_freq=5
 pci: enabled=1, chipset=i440fx, slot1=cirrus
 </screen>
@@ -11456,7 +11479,7 @@ cpu: count=1, ips=75000000, reset_on_triple_fault=1, ignore_bad_msrs=1
 cpu: cpuid_limit_winnt=0
 clock: sync=realtime, time0=local
 memory: guest=512, host=512
-vgaromimage: file=D:/path/to/your/bios/VGABIOS-lgpl-latest-cirrus.bin
+vgaromimage: file=D:/path/to/your/bios/VGABIOS-lgpl/VGABIOS-lgpl-latest-cirrus.bin
 vga: extension=cirrus, update_freq=5
 pci: enabled=1, chipset=i440fx, slot1=cirrus
 </screen>
@@ -11489,7 +11512,7 @@ cpu: count=1, ips=100000000, reset_on_triple_fault=1, ignore_bad_msrs=1
 cpu: cpuid_limit_winnt=0
 clock: sync=realtime, time0=local
 memory: guest=1024, host=1024
-vgaromimage: file=D:/path/to/your/bios/VGABIOS-lgpl-latest-cirrus.bin
+vgaromimage: file=D:/path/to/your/bios/VGABIOS-lgpl/VGABIOS-lgpl-latest-cirrus.bin
 vga: extension=cirrus, update_freq=5
 pci: enabled=1, chipset=i440fx, slot1=cirrus
 </screen>
@@ -11514,7 +11537,7 @@ cpu: count=1, ips=150000000, reset_on_triple_fault=1, ignore_bad_msrs=1
 cpu: cpuid_limit_winnt=0
 clock: sync=realtime, time0=local
 memory: guest=2048, host=2048
-vgaromimage: file=D:/path/to/your/bios/VGABIOS-lgpl-latest-cirrus.bin
+vgaromimage: file=D:/path/to/your/bios/VGABIOS-lgpl/VGABIOS-lgpl-latest-cirrus.bin
 vga: extension=cirrus, update_freq=5
 pci: enabled=1, chipset=i440fx, slot1=cirrus
 </screen>
@@ -11544,7 +11567,7 @@ cpu: count=1, ips=325000000, reset_on_triple_fault=1, ignore_bad_msrs=1
 cpu: cpuid_limit_winnt=0
 clock: sync=realtime, time0=local
 memory: guest=2048, host=2048
-vgaromimage: file=D:/path/to/your/bios/VGABIOS-lgpl-latest-cirrus.bin
+vgaromimage: file=D:/path/to/your/bios/VGABIOS-lgpl/VGABIOS-lgpl-latest-cirrus.bin
 vga: extension=cirrus, update_freq=5
 pci: enabled=1, chipset=i440fx, slot1=cirrus
 </screen>
@@ -11656,7 +11679,7 @@ ata1: enabled=0
 ata2: enabled=0
 ata3: enabled=0
 romimage: file=bios/BIOS-bochs-latest
-vgaromimage: file=bios/VGABIOS-lgpl-latest.bin
+vgaromimage: file=bios/VGABIOS-lgpl/VGABIOS-lgpl-latest.bin
 megs: 64
 parport1: enabled=1, file="lp.pipe"
 com1: enabled=0
@@ -11675,7 +11698,7 @@ pci: enabled=0
 # no loader
 log: osr5.log
 logprefix: %t-%e-%i%d
-debugger_log: -
+debugger: log=-
 panic: action=ask
 error: action=report
 info: action=report

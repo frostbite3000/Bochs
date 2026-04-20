@@ -762,15 +762,19 @@ void pluginUnregisterDeviceDevmodel(const char *name, Bit16u type)
 /* Plugin system: Check if a plugin is loaded                           */
 /************************************************************************/
 
-bool pluginDevicePresent(const char *name)
+bool pluginDevicePresent(const char *name, bool core)
 {
   device_t *device;
 
-  for (device = devices; device; device = device->next)
-  {
-    if (!strcmp(name, device->name)) return 1;
+  if (core) {
+    for (device = core_devices; device; device = device->next) {
+      if (!strcmp(name, device->name)) return 1;
+    }
+  } else {
+    for (device = devices; device; device = device->next) {
+      if (!strcmp(name, device->name)) return 1;
+    }
   }
-
   return 0;
 }
 
@@ -1146,6 +1150,7 @@ plugin_t bx_builtin_plugins[] = {
   BUILTIN_IMG_PLUGIN_ENTRY(vmware4),
   BUILTIN_IMG_PLUGIN_ENTRY(vbox),
   BUILTIN_IMG_PLUGIN_ENTRY(vpc),
+  BUILTIN_IMG_PLUGIN_ENTRY(vhdx),
   BUILTIN_IMG_PLUGIN_ENTRY(vvfat),
   {"NULL", PLUGTYPE_NULL, 0, NULL, 0}
 };
@@ -1205,10 +1210,11 @@ int bx_load_plugin_np(const char *name, Bit16u type)
         bx_builtin_plugins[i].loadtype = type;
         bx_builtin_plugins[i].plugin_entry(NULL, type, PLUGIN_INIT);
         bx_builtin_plugins[i].initialized = 1;
+        return 1;
       } else {
         BX_PANIC(("plugin '%s' already loaded", name));
+        return 0;
       }
-      return 1;
     }
     i++;
   }

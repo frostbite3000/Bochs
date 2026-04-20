@@ -706,16 +706,8 @@ bx_param_enum_c::bx_param_enum_c(bx_param_c *parent,
   : bx_param_num_c(parent, name, label, description, value_base, BX_MAX_BIT64S, initial_val)
 {
   set_type(BXT_PARAM_ENUM);
-  this->choices = choices;
-  // count number of choices, set max
-  const char **p = choices;
-  while (*p != NULL) p++;
-  this->min = value_base;
-  // now that the max is known, replace the BX_MAX_BIT64S sent to the parent
-  // class constructor with the real max.
-  this->max = value_base + (p - choices - 1);
   this->deps_bitmap = NULL;
-  set(initial_val);
+  set_choices(choices, initial_val, value_base);
 }
 
 bx_param_enum_c::~bx_param_enum_c()
@@ -728,6 +720,27 @@ void bx_param_enum_c::set(Bit64s val)
 {
   bx_param_num_c::set(val);
   update_dependents();
+}
+
+void bx_param_enum_c::set_choices(const char **choices, Bit64s initial_val, Bit64s value_base)
+{
+  static const char *dummy_list[] = {
+    "    ",
+    NULL
+  };
+  if (choices != NULL) {
+    this->choices = choices;
+  } else {
+    this->choices = dummy_list;
+  }
+  // count number of choices, set max
+  const char **p = this->choices;
+  while (*p != NULL) p++;
+  this->min = value_base;
+  // now that the max is known, replace the BX_MAX_BIT64S sent to the parent
+  // class constructor with the real max.
+  this->max = value_base + (p - this->choices - 1);
+  set(initial_val);
 }
 
 int bx_param_enum_c::find_by_name(const char *s)
@@ -750,6 +763,9 @@ bool bx_param_enum_c::set_by_name(const char *s)
 
 void bx_param_enum_c::set_dependent_list(bx_list_c *l, bool enable_all)
 {
+  if (dependent_list != NULL) {
+    delete dependent_list;
+  }
   dependent_list = l;
   deps_bitmap = new Bit64u[(unsigned)(max - min + 1)];
   for (int i=0; i<(max-min+1); i++) {
@@ -1110,7 +1126,7 @@ void bx_param_filename_c::set_initial_val(const char *buf)
 bx_shadow_data_c::bx_shadow_data_c(bx_param_c *parent,
     const char *name,
     Bit8u *ptr_to_data,
-    Bit32u data_size,
+    Bit64u data_size,
     bool is_text)
   : bx_param_c(SIM->gen_param_id(), name, "")
 {
@@ -1125,7 +1141,7 @@ bx_shadow_data_c::bx_shadow_data_c(bx_param_c *parent,
   }
 }
 
-Bit8u bx_shadow_data_c::get(Bit32u index)
+Bit8u bx_shadow_data_c::get(Bit64u index)
 {
   if (index < data_size) {
     return data_ptr[index];
@@ -1134,7 +1150,7 @@ Bit8u bx_shadow_data_c::get(Bit32u index)
   }
 }
 
-void bx_shadow_data_c::set(Bit32u index, Bit8u value)
+void bx_shadow_data_c::set(Bit64u index, Bit8u value)
 {
   if (index < data_size) {
     data_ptr[index] = value;

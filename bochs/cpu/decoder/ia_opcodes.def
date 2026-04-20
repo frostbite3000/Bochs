@@ -2,7 +2,7 @@
 // $Id$
 /////////////////////////////////////////////////////////////////////////
 //
-//   Copyright (c) 2008-2024 Stanislav Shwartsman
+//   Copyright (c) 2008-2026 Stanislav Shwartsman
 //          Written by Stanislav Shwartsman [sshwarts at sourceforge net]
 //
 //  This library is free software; you can redistribute it and/or
@@ -1797,7 +1797,7 @@ bx_define_opcode(BX_IA_CLUI, "clui", "clui", NULL, &BX_CPU_C::CLUI, BX_ISA_UINTR
 bx_define_opcode(BX_IA_STUI, "stui", "stui", NULL, &BX_CPU_C::STUI, BX_ISA_UINTR, OP_NONE, OP_NONE, OP_NONE, OP_NONE, BX_TRACE_END)
 bx_define_opcode(BX_IA_TESTUI, "testui", "testui", NULL, &BX_CPU_C::TESTUI, BX_ISA_UINTR, OP_NONE, OP_NONE, OP_NONE, OP_NONE, 0)
 bx_define_opcode(BX_IA_UIRET, "uiret", "uiret", NULL, &BX_CPU_C::UIRET, BX_ISA_UINTR, OP_NONE, OP_NONE, OP_NONE, OP_NONE, BX_TRACE_END)
-bx_define_opcode(BX_IA_SENDUIPI_Gq, "senduipi", "senduipi", NULL, &BX_CPU_C::SENDUIPI_Gq, BX_ISA_UINTR, OP_Gq, OP_NONE, OP_NONE, OP_NONE, BX_TRACE_END)
+bx_define_opcode(BX_IA_SENDUIPI_Eq, "senduipi", "senduipi", NULL, &BX_CPU_C::SENDUIPI_Eq, BX_ISA_UINTR, OP_Eq, OP_NONE, OP_NONE, OP_NONE, BX_TRACE_END)
 #endif
 
 bx_define_opcode(BX_IA_RDPID_Ed, "rdpid", "rdpid", NULL, &BX_CPU_C::RDPID_Ed, BX_ISA_RDPID, OP_Ed, OP_NONE, OP_NONE, OP_NONE, 0)
@@ -2790,6 +2790,10 @@ bx_define_opcode(BX_IA_TDPFP16PS_TnnnTrmTreg, "tdpfp16ps", "tdpfp16ps", NULL, &B
 bx_define_opcode(BX_IA_TCMMRLFP16PS_TnnnTrmTreg, "tcmmrlfp16ps", "tcmmrlfp16ps", NULL, &BX_CPU_C::TCMMRLFP16PS_TnnnTrmTreg, BX_ISA_AMX_COMPLEX, OP_Tnnn, OP_Trm, OP_Treg, OP_NONE, BX_PREPARE_AMX)
 bx_define_opcode(BX_IA_TCMMIMFP16PS_TnnnTrmTreg, "tcmmimfp16ps", "tcmmimfp16ps", NULL, &BX_CPU_C::TCMMIMFP16PS_TnnnTrmTreg, BX_ISA_AMX_COMPLEX, OP_Tnnn, OP_Trm, OP_Treg, OP_NONE, BX_PREPARE_AMX)
 bx_define_opcode(BX_IA_TMMULTF32PS_TnnnTrmTreg, "tmmultf32ps", "tmmultf32ps", NULL, &BX_CPU_C::TMMULTF32PS_TnnnTrmTreg, BX_ISA_AMX_TF32, OP_Tnnn, OP_Trm, OP_Treg, OP_NONE, BX_PREPARE_AMX)
+bx_define_opcode(BX_IA_TDPBF8PS_TnnnTrmTreg, "tdpbf8ps", "tdpbf8ps", NULL, &BX_CPU_C::TDPBF8PS_TnnnTrmTreg, BX_ISA_AMX_FP8, OP_Tnnn, OP_Trm, OP_Treg, OP_NONE, BX_PREPARE_AMX)
+bx_define_opcode(BX_IA_TDPHF8PS_TnnnTrmTreg, "tdphf8ps", "tdpbh8ps", NULL, &BX_CPU_C::TDPHF8PS_TnnnTrmTreg, BX_ISA_AMX_FP8, OP_Tnnn, OP_Trm, OP_Treg, OP_NONE, BX_PREPARE_AMX)
+bx_define_opcode(BX_IA_TDPBHF8PS_TnnnTrmTreg, "tdpbhf8ps", "tdpbf8ps", NULL, &BX_CPU_C::TDPBHF8PS_TnnnTrmTreg, BX_ISA_AMX_FP8, OP_Tnnn, OP_Trm, OP_Treg, OP_NONE, BX_PREPARE_AMX)
+bx_define_opcode(BX_IA_TDPHBF8PS_TnnnTrmTreg, "tdphbf8ps", "tdpbh8ps", NULL, &BX_CPU_C::TDPHBF8PS_TnnnTrmTreg, BX_ISA_AMX_FP8, OP_Tnnn, OP_Trm, OP_Treg, OP_NONE, BX_PREPARE_AMX)
 #endif
 
 #if BX_SUPPORT_AVX
@@ -2883,6 +2887,12 @@ bx_define_opcode(BX_IA_MOVRS_GbEb, "movrs", "movrsb", &BX_CPU_C::MOV_GbEbM, NULL
 bx_define_opcode(BX_IA_MOVRS_GwEw, "movrs", "movrsw", &BX_CPU_C::MOV_GwEwM, NULL, BX_ISA_MOVRS, OP_Gw, OP_Ew, OP_NONE, OP_NONE, 0)
 bx_define_opcode(BX_IA_MOVRS_GdEd, "movrs", "movrsl", &BX_CPU_C::MOV64_GdEdM, NULL, BX_ISA_MOVRS, OP_Gd, OP_Ed, OP_NONE, OP_NONE, 0)
 bx_define_opcode(BX_IA_MOVRS_GqEq, "movrs", "movrsq", &BX_CPU_C::MOV_GqEqM, NULL, BX_ISA_MOVRS, OP_Gq, OP_Eq, OP_NONE, OP_NONE, 0)
+#endif
+
+#if BX_SUPPORT_FRED
+bx_define_opcode(BX_IA_ERETS, "erets", "erets", NULL, &BX_CPU_C::ERETS, BX_ISA_FRED, OP_NONE, OP_NONE, OP_NONE, OP_NONE, BX_TRACE_END)
+bx_define_opcode(BX_IA_ERETU, "eretu", "eretu", NULL, &BX_CPU_C::ERETU, BX_ISA_FRED, OP_NONE, OP_NONE, OP_NONE, OP_NONE, BX_TRACE_END)
+bx_define_opcode(BX_IA_LKGS_Ew, "lkgs", "lkgs", &BX_CPU_C::LKGS_Ew, &BX_CPU_C::LKGS_Ew, BX_ISA_FRED, OP_Ew, OP_NONE, OP_NONE, OP_NONE, 0)
 #endif
 
 #if BX_SUPPORT_EVEX

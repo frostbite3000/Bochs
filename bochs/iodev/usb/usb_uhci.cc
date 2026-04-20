@@ -3,7 +3,7 @@
 /////////////////////////////////////////////////////////////////////////
 //
 //  Copyright (C) 2009-2025  Benjamin D Lunt (fys [at] fysnet [dot] net)
-//                2009-2025  The Bochs Project
+//                2009-2026  The Bochs Project
 //
 //  This library is free software; you can redistribute it and/or
 //  modify it under the terms of the GNU Lesser General Public
@@ -86,7 +86,7 @@ PLUGIN_ENTRY_FOR_MODULE(usb_uhci)
     SIM->register_addon_option("usb_uhci", usb_uhci_options_parser, usb_uhci_options_save);
   } else if (mode == PLUGIN_FINI) {
     SIM->unregister_addon_option("usb_uhci");
-    bx_list_c *menu = (bx_list_c *) SIM->get_param("ports.usb");
+    bx_list_c *menu = (bx_list_c *) SIM->get_param("usb");
     delete theUSB_UHCI;
     menu->remove("uhci");
   } else if (mode == PLUGIN_PROBE) {
@@ -122,10 +122,9 @@ bx_usb_uhci_c::~bx_usb_uhci_c()
     remove_device(i);
   }
 
-  SIM->get_bochs_root()->remove("usb_uhci");
   bx_list_c *usb_rt = (bx_list_c *) SIM->get_param(BXPN_MENU_RUNTIME_USB);
   usb_rt->remove("uhci");
-
+  SIM->get_bochs_root()->remove("usb_uhci");
   BX_DEBUG(("Exit"));
 }
 

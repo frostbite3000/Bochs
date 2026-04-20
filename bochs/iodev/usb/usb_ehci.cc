@@ -4,7 +4,7 @@
 //
 //  Experimental USB EHCI adapter (partly ported from Qemu)
 //
-//  Copyright (C) 2015-2025  The Bochs Project
+//  Copyright (C) 2015-2026  The Bochs Project
 //
 //  Copyright(c) 2008  Emutex Ltd. (address@hidden)
 //  Copyright(c) 2011-2012 Red Hat, Inc.
@@ -39,6 +39,7 @@
 #define BX_PLUGGABLE
 
 #include "iodev.h"
+#include "pc_system.h"
 
 #if BX_SUPPORT_PCI && BX_SUPPORT_USB_EHCI
 
@@ -174,7 +175,7 @@ PLUGIN_ENTRY_FOR_MODULE(usb_ehci)
     SIM->register_addon_option("usb_ehci", usb_ehci_options_parser, usb_ehci_options_save);
   } else if (mode == PLUGIN_FINI) {
     SIM->unregister_addon_option("usb_ehci");
-    bx_list_c *menu = (bx_list_c*)SIM->get_param("ports.usb");
+    bx_list_c *menu = (bx_list_c*)SIM->get_param("usb");
     delete theUSB_EHCI;
     menu->remove("ehci");
   } else if (mode == PLUGIN_PROBE) {
@@ -224,9 +225,9 @@ bx_usb_ehci_c::~bx_usb_ehci_c()
     remove_device(i);
   }
 
-  SIM->get_bochs_root()->remove("usb_ehci");
   bx_list_c *usb_rt = (bx_list_c*)SIM->get_param(BXPN_MENU_RUNTIME_USB);
   usb_rt->remove("ehci");
+  SIM->get_bochs_root()->remove("usb_ehci");
   BX_DEBUG(("Exit"));
 }
 
@@ -505,7 +506,7 @@ void bx_usb_ehci_c::after_restore_state(void)
 {
   int i;
 
-  bx_pci_device_c::after_restore_pci_state(NULL);
+  bx_pci_device_c::after_restore_pci_state();
   for (i=0; i<USB_EHCI_PORTS; i++) {
     if (BX_EHCI_THIS hub.usb_port[i].device != NULL) {
       BX_EHCI_THIS hub.usb_port[i].device->after_restore_state();
@@ -979,7 +980,7 @@ bool bx_usb_ehci_c::write_handler(bx_phy_address addr, unsigned len, void *data,
           }
           break;
         case 0x04:
-          BX_EHCI_THIS hub.op_regs.UsbSts.inti ^= (value & USBINTR_MASK);
+          BX_EHCI_THIS hub.op_regs.UsbSts.inti &= ~(value & USBINTR_MASK);
           BX_EHCI_THIS update_irq();
           break;
         case 0x08:

@@ -2,7 +2,7 @@
 // $Id$
 /////////////////////////////////////////////////////////////////////////
 //
-//   Copyright (c) 2008-2024 Stanislav Shwartsman
+//   Copyright (c) 2008-2026 Stanislav Shwartsman
 //          Written by Stanislav Shwartsman [sshwarts at sourceforge net]
 //
 //  This library is free software; you can redistribute it and/or
@@ -95,9 +95,7 @@ void BX_CPP_AttrRegparmN(1) BX_CPU_C::XSAVE(bxInstruction_c *i)
   /////////////////////////////////////////////////////////////////////////////
   if ((requested_feature_bitmap & (BX_XCR0_SSE_MASK | BX_XCR0_YMM_MASK)) != 0)
   {
-    // store MXCSR - write cannot cause any boundary cross because XSAVE image is 64-byte aligned
-    write_virtual_dword(i->seg(), eaddr + 24, BX_MXCSR_REGISTER);
-    write_virtual_dword(i->seg(), eaddr + 28, MXCSR_MASK);
+    xsave_mxcsr_state(i, eaddr);
   }
 
   /////////////////////////////////////////////////////////////////////////////
@@ -107,14 +105,11 @@ void BX_CPP_AttrRegparmN(1) BX_CPU_C::XSAVE(bxInstruction_c *i)
 
     if ((requested_feature_bitmap & feature_mask) != 0)
     {
-      if (! xsave_restore[feature].len) {
-        BX_ERROR(("%s: feature #%d requested to save but not implemented !", i->getIaOpcodeNameShort(), feature));
-        continue;
-      }
-
       if (! xsaveopt || (xinuse & feature_mask) != 0) {
-        BX_ASSERT(xsave_restore[feature].xsave_method);
-        CALL_XSAVE_FN(xsave_restore[feature].xsave_method)(i, eaddr+xsave_restore[feature].offset);
+        if (xsave_restore[feature].xsave_method == NULL)
+          BX_ERROR(("%s: feature #%d requested to save but not implemented !", i->getIaOpcodeNameShort(), feature));
+        else
+          CALL_XSAVE_FN(xsave_restore[feature].xsave_method)(i, eaddr+xsave_restore[feature].offset);
       }
 
       if (xinuse & feature_mask)
@@ -195,15 +190,9 @@ void BX_CPP_AttrRegparmN(1) BX_CPU_C::XSAVEC(bxInstruction_c *i)
     xsave_x87_state(i, eaddr);
   }
 
-  if ((xstate_bv & (BX_XCR0_SSE_MASK|BX_XCR0_YMM_MASK)) != 0)
-  {
-    // write cannot cause any boundary cross because XSAVE image is 64-byte aligned
-    write_virtual_dword(i->seg(), eaddr + 24, BX_MXCSR_REGISTER);
-    write_virtual_dword(i->seg(), eaddr + 28, MXCSR_MASK);
-  }
-
   if ((xstate_bv & BX_XCR0_SSE_MASK) != 0)
   {
+    xsave_mxcsr_state(i, eaddr); // for XSAVEC/XSAVES MXCSR is treated as part of SSE state
     xsave_sse_state(i, eaddr+XSAVE_SSE_STATE_OFFSET);
   }
 
@@ -216,14 +205,11 @@ void BX_CPP_AttrRegparmN(1) BX_CPU_C::XSAVEC(bxInstruction_c *i)
 
     if ((requested_feature_bitmap & feature_mask) != 0)
     {
-      if (! xsave_restore[feature].len) {
-        BX_ERROR(("%s: feature #%d requested to save but not implemented !", i->getIaOpcodeNameShort(), feature));
-        continue;
-      }
-
       if (xinuse & feature_mask) {
-        BX_ASSERT(xsave_restore[feature].xsave_method);
-        CALL_XSAVE_FN(xsave_restore[feature].xsave_method)(i, eaddr+offset);
+        if (xsave_restore[feature].xsave_method == NULL)
+          BX_ERROR(("%s: feature #%d requested to save but not implemented !", i->getIaOpcodeNameShort(), feature));
+        else
+          CALL_XSAVE_FN(xsave_restore[feature].xsave_method)(i, eaddr+offset);
       }
 
       offset += xsave_restore[feature].len;
@@ -360,25 +346,25 @@ void BX_CPP_AttrRegparmN(1) BX_CPU_C::XRSTOR(bxInstruction_c *i)
   /////////////////////////////////////////////////////////////////////////////
   // Legacy form of XRSTOR loads the MXCSR register from memory whenever the
   // RFBM[1](SSE) or RFBM[2](AVX) is set, regardless of the values of XSTATE_BV[1] and XSTATE_BV[2]
-  if (((requested_feature_bitmap & (BX_XCR0_SSE_MASK|BX_XCR0_YMM_MASK)) != 0 && ! compaction) ||
-      ((requested_feature_bitmap & restore_mask & BX_XCR0_SSE_MASK) != 0 && compaction))
+  // For compaction form and XRSTORS, MXCSR is part of SSE state and handled together with it
+  if ((requested_feature_bitmap & (BX_XCR0_SSE_MASK|BX_XCR0_YMM_MASK)) != 0 && ! compaction && ! xrstors)
   {
-    // read cannot cause any boundary cross because XSAVE image is 64-byte aligned
-    Bit32u new_mxcsr = read_virtual_dword(i->seg(), eaddr + 24);
-    if(new_mxcsr & ~MXCSR_MASK) {
-       BX_ERROR(("%s: corrupted MXCSR state restored new_mxcsr=0x%08x", i->getIaOpcodeNameShort(), new_mxcsr));
-       exception(BX_GP_EXCEPTION, 0);
-    }
-    BX_MXCSR_REGISTER = new_mxcsr;
+    xrstor_mxcsr_state(i, eaddr);
   }
 
   /////////////////////////////////////////////////////////////////////////////
   if ((requested_feature_bitmap & BX_XCR0_SSE_MASK) != 0)
   {
-    if (restore_mask & BX_XCR0_SSE_MASK)
+    if (restore_mask & BX_XCR0_SSE_MASK) {
       xrstor_sse_state(i, eaddr+XSAVE_SSE_STATE_OFFSET);
-    else
+      if (compaction || xrstors)
+        xrstor_mxcsr_state(i, eaddr);
+    }
+    else {
       xrstor_init_sse_state();
+      if (compaction || xrstors)
+        xrstor_init_mxcsr_state();
+    }
   }
 
   if (compaction) {
@@ -391,23 +377,22 @@ void BX_CPP_AttrRegparmN(1) BX_CPU_C::XRSTOR(bxInstruction_c *i)
 
       if ((requested_feature_bitmap & feature_mask) != 0)
       {
-        if (! xsave_restore[feature].len) {
-          BX_ERROR(("%s: feature #%d requested to restore but not implemented !", i->getIaOpcodeNameShort(), feature));
-          continue;
-        }
-
         if (restore_mask & feature_mask) {
-          BX_ASSERT(xsave_restore[feature].xrstor_method);
-          CALL_XSAVE_FN(xsave_restore[feature].xrstor_method)(i, eaddr+offset);
+          if (xsave_restore[feature].xrstor_method == NULL)
+            BX_ERROR(("%s: feature #%d requested to restore but not implemented !", i->getIaOpcodeNameShort(), feature));
+          else
+            CALL_XSAVE_FN(xsave_restore[feature].xrstor_method)(i, eaddr+offset);
         }
         else {
-          BX_ASSERT(xsave_restore[feature].xrstor_init_method);
-          CALL_XSAVE_FN(xsave_restore[feature].xrstor_init_method)();
+          if (xsave_restore[feature].xrstor_init_method == NULL)
+            BX_ERROR(("%s: feature #%d requested to restore but not implemented !", i->getIaOpcodeNameShort(), feature));
+          else
+            CALL_XSAVE_FN(xsave_restore[feature].xrstor_init_method)();
         }
-
-        if (format & feature_mask)
-          offset += xsave_restore[feature].len;
       }
+
+      if (format & feature_mask)
+        offset += xsave_restore[feature].len;
     }
   }
   else {
@@ -419,18 +404,17 @@ void BX_CPP_AttrRegparmN(1) BX_CPU_C::XRSTOR(bxInstruction_c *i)
 
       if ((requested_feature_bitmap & feature_mask) != 0)
       {
-        if (! xsave_restore[feature].len) {
-          BX_ERROR(("%s: feature #%d requested to restore but not implemented !", i->getIaOpcodeNameShort(), feature));
-          continue;
-        }
-
         if (xstate_bv & feature_mask) {
-          BX_ASSERT(xsave_restore[feature].xrstor_method);
-          CALL_XSAVE_FN(xsave_restore[feature].xrstor_method)(i, eaddr+xsave_restore[feature].offset);
+          if (xsave_restore[feature].xrstor_method == NULL)
+            BX_ERROR(("%s: feature #%d requested to restore but not implemented !", i->getIaOpcodeNameShort(), feature));
+          else
+            CALL_XSAVE_FN(xsave_restore[feature].xrstor_method)(i, eaddr+xsave_restore[feature].offset);
         }
         else {
-          BX_ASSERT(xsave_restore[feature].xrstor_init_method);
-          CALL_XSAVE_FN(xsave_restore[feature].xrstor_init_method)();
+          if (xsave_restore[feature].xrstor_init_method == NULL)
+            BX_ERROR(("%s: feature #%d requested to restore but not implemented !", i->getIaOpcodeNameShort(), feature));
+          else
+            CALL_XSAVE_FN(xsave_restore[feature].xrstor_init_method)();
         }
       }
     }
@@ -630,6 +614,31 @@ bool BX_CPU_C::xsave_x87_state_xinuse(void)
   return false;
 }
 
+// MXCSR state management //
+
+void BX_CPU_C::xsave_mxcsr_state(bxInstruction_c *i, bx_address eaddr)
+{
+  // store MXCSR - write cannot cause any boundary cross because XSAVE image is 64-byte aligned
+  write_virtual_dword(i->seg(), eaddr + 24, BX_MXCSR_REGISTER);
+  write_virtual_dword(i->seg(), eaddr + 28, MXCSR_MASK);
+}
+
+void BX_CPU_C::xrstor_mxcsr_state(bxInstruction_c *i, bx_address eaddr)
+{
+  // read cannot cause any boundary cross because XSAVE image is 64-byte aligned
+  Bit32u new_mxcsr = read_virtual_dword(i->seg(), eaddr + 24);
+  if(new_mxcsr & ~MXCSR_MASK) {
+     BX_ERROR(("%s: corrupted MXCSR state restored new_mxcsr=0x%08x", i->getIaOpcodeNameShort(), new_mxcsr));
+     exception(BX_GP_EXCEPTION, 0);
+  }
+  BX_MXCSR_REGISTER = new_mxcsr;
+}
+
+void BX_CPU_C::xrstor_init_mxcsr_state(void)
+{
+  BX_MXCSR_REGISTER = MXCSR_RESET;
+}
+
 // SSE state management //
 
 void BX_CPU_C::xsave_sse_state(bxInstruction_c *i, bx_address offset)
@@ -784,10 +793,6 @@ bool BX_CPU_C::xsave_opmask_state_xinuse(void)
 // Outside 64-bit mode, ZMM_Hi256 state is in its initial configuration if each of ZMM0_H-ZMM7_H is 0.
 // An execution of XRSTOR or XRSTORS outside 64-bit mode does not update ZMM8_H-ZMM15_H.
 
-// In processor which support only AVX10.VL256 but not AVX10.VL512 ZMM_Hi256 state always tracked as INIT
-// XRSTOR* ignore the contents of the memory corresponding to ZMM_Hi256 state and the corresponding XSTATE_BV bit. 
-// XSAVE zero the memory corresponding ZMM_Hi256, other XSAVE* instructions incorporate INIT optimization.
-
 void BX_CPU_C::xsave_zmm_hi256_state(bxInstruction_c *i, bx_address offset)
 {
   unsigned num_regs = long64_mode() ? 16 : 8;
@@ -842,12 +847,6 @@ bool BX_CPU_C::xsave_zmm_hi256_state_xinuse(void)
 // Outside 64-bit mode, Hi16_ZMM state is always in its initial configuration.
 // An execution of XRSTOR or XRSTORS outside 64-bit mode does not update ZMM16-ZMM31.
 
-// In processor which support only AVX10.VL256 but not AVX10.VL512:
-// XSAVE* save the lower 256 bits of each ZMM registers in Hi16_ZMM state and zero the memory
-// corresponding to upper 256 bits
-// XRSTOR* restore the lower 256 bit of each ZMM register in Hi16_ZMM state and ignore the contents of
-// the memory corresponding to upper 256 bits.
-
 void BX_CPU_C::xsave_hi_zmm_state(bxInstruction_c *i, bx_address offset)
 {
   if (!long64_mode()) return;
@@ -884,7 +883,8 @@ void BX_CPU_C::xrstor_init_hi_zmm_state(void)
 
 bool BX_CPU_C::xsave_hi_zmm_state_xinuse(void)
 {
-  if (!long64_mode()) return true;
+  // Outside 64-bit mode, Hi16_ZMM state is always in its initial configuration
+  if (!long64_mode()) return false;
 
   for(unsigned index=16; index < 32; index++) {
     for (unsigned n=0; n < 4; n++) {
@@ -1169,7 +1169,7 @@ Bit32u BX_CPU_C::get_xinuse_vector(Bit32u requested_feature_bitmap)
 
     if ((requested_feature_bitmap & feature_mask) != 0)
     {
-      if (! xsave_restore[feature].len) {
+      if (xsave_restore[feature].xstate_in_use_method == NULL) {
         BX_ERROR(("get_xinuse_vector(0x%08x): feature #%d requested but not implemented !", requested_feature_bitmap, feature));
         continue;
       }
