@@ -2,7 +2,7 @@
 // $Id$
 /////////////////////////////////////////////////////////////////////////
 //
-//  Copyright (C) 2001-2024  The Bochs Project
+//  Copyright (C) 2001-2026  The Bochs Project
 //
 //  This library is free software; you can redistribute it and/or
 //  modify it under the terms of the GNU Lesser General Public
@@ -2074,17 +2074,26 @@ int BX_CPU_C::assignHandler(bxInstruction_c *i, Bit32u fetchModeMask)
         if ((op_flags & BX_PREPARE_EVEX_NO_BROADCAST) == BX_PREPARE_EVEX_NO_BROADCAST) {
           BX_DEBUG(("%s: broadcast is not supported for this instruction", i->getIaOpcodeNameShort()));
           i->execute1 = &BX_CPU_C::BxError;
+          return(1);
         }
       }
       else {
         if ((op_flags & BX_PREPARE_EVEX_NO_SAE) == BX_PREPARE_EVEX_NO_SAE) {
           BX_DEBUG(("%s: EVEX.b in reg form is not allowed for instructions which cannot cause floating point exception", i->getIaOpcodeNameShort()));
           i->execute1 = &BX_CPU_C::BxError;
+          return(1);
         }
       }
     }
   }
 #endif
+
+  if (! protected_mode()) {
+     if ((op_flags & BX_PROTECTED_MODE_ONLY) != 0) {
+        if (i->execute1 != &BX_CPU_C::BxError) i->execute1 = &BX_CPU_C::BxProtectedModeRequired;
+        return(1);
+     }
+  }
 
   if (! (fetchModeMask & BX_FETCH_MODE_FPU_MMX_OK)) {
      if (op_flags & BX_PREPARE_FPU) {
@@ -2111,12 +2120,6 @@ int BX_CPU_C::assignHandler(bxInstruction_c *i, Bit32u fetchModeMask)
     }
   }
 #if BX_SUPPORT_EVEX
-  if (! (fetchModeMask & BX_FETCH_MODE_OPMASK_OK)) {
-    if (op_flags & BX_PREPARE_OPMASK) {
-       if (i->execute1 != &BX_CPU_C::BxError) i->execute1 = &BX_CPU_C::BxNoOpMask;
-       return(1);
-    }
-  }
   if (! (fetchModeMask & BX_FETCH_MODE_EVEX_OK)) {
     if (op_flags & BX_PREPARE_EVEX) {
        if (i->execute1 != &BX_CPU_C::BxError) i->execute1 = &BX_CPU_C::BxNoEVEX;
@@ -2130,10 +2133,10 @@ int BX_CPU_C::assignHandler(bxInstruction_c *i, Bit32u fetchModeMask)
        return(1);
     }
   }
-#endif
-#endif
-#endif
-#endif
+#endif // BX_SUPPORT_AMX
+#endif // BX_SUPPORT_EVEX
+#endif // BX_SUPPORT_AVX
+#endif // BX_CPU_LEVEL >= 6
 
   if ((op_flags & BX_TRACE_END) != 0 || i->execute1 == &BX_CPU_C::BxError)
      return(1);
@@ -2196,8 +2199,7 @@ void BX_CPU_C::init_FetchDecodeTables(void)
         case BX_ISA_AVX512_BITALG:
         case BX_ISA_AVX512_BF16:
         case BX_ISA_AVX512_FP16:
-          // It is possible that AVX512 is not supported on this processor but AVX10 is (for example AVX10_VL256 only)
-          // AVX10_1 includes all above AVX512 extensions
+          // It is possible that AVX512 is not supported on this processor but AVX10 is AVX10_1 includes all above AVX512 extensions
           if (BX_CPUID_SUPPORT_ISA_EXTENSION(BX_ISA_AVX10_1)) continue;
 
         default: break;

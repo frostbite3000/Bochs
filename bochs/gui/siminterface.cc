@@ -96,6 +96,7 @@ public:
   virtual bx_param_c *get_param(const char *pname, bx_param_c *base=NULL);
   virtual bx_param_num_c *get_param_num(const char *pname, bx_param_c *base=NULL);
   virtual bx_param_string_c *get_param_string(const char *pname, bx_param_c *base=NULL);
+  virtual bx_param_bytestring_c *get_param_bytestring(const char *pname, bx_param_c *base=NULL);
   virtual bx_param_bool_c *get_param_bool(const char *pname, bx_param_c *base=NULL);
   virtual bx_param_enum_c *get_param_enum(const char *pname, bx_param_c *base=NULL);
   virtual Bit32u gen_param_id() { return param_id++; }
@@ -181,7 +182,7 @@ public:
     void *userdata);
   virtual int configuration_interface(const char* name, ci_command_t command);
 #if BX_USB_DEBUGGER
-  virtual void register_usb_debug_type(int type);
+  virtual void register_usb_debug_type(int type, int devid = -1);
   virtual void usb_debug_trigger(int type, int trigger, Bit64u param0, int param1, int param2);
   virtual int usb_debug_interface(int type, Bit64u param0, int param1, int param2);
 #endif
@@ -321,9 +322,22 @@ bx_param_string_c *bx_real_sim_c::get_param_string(const char *pname, bx_param_c
     BX_ERROR(("get_param_string(%s) could not find a parameter", pname));
     return NULL;
   }
-  if (gen->get_type() == BXT_PARAM_STRING || gen->get_type() == BXT_PARAM_BYTESTRING)
+  if (gen->get_type() == BXT_PARAM_STRING)
     return (bx_param_string_c *)gen;
   BX_ERROR(("get_param_string(%s) could not find a string parameter with that name", pname));
+  return NULL;
+}
+
+bx_param_bytestring_c *bx_real_sim_c::get_param_bytestring(const char *pname, bx_param_c *base)
+{
+  bx_param_c *gen = get_param(pname, base);
+  if (gen==NULL) {
+    BX_ERROR(("get_param_bytestring(%s) could not find a parameter", pname));
+    return NULL;
+  }
+  if (gen->get_type() == BXT_PARAM_BYTESTRING)
+    return (bx_param_bytestring_c *)gen;
+  BX_ERROR(("get_param_bytestring(%s) could not find a byte string parameter with that name", pname));
   return NULL;
 }
 
@@ -382,6 +396,7 @@ int bx_cleanup_siminterface()
   io->exit_log2();
   int exit_code = SIM->get_exit_code();
   delete SIM;
+  SIM = NULL;
   return exit_code;
 }
 
@@ -938,9 +953,9 @@ int bx_real_sim_c::configuration_interface(const char *ignore, ci_command_t comm
 }
 
 #if BX_USB_DEBUGGER
-void bx_real_sim_c::register_usb_debug_type(int type)
+void bx_real_sim_c::register_usb_debug_type(int type, int devid)
 {
-  usb_dbg_register_type(type);
+  usb_dbg_register_type(type, devid);
 }
 
 void bx_real_sim_c::usb_debug_trigger(int type, int trigger, Bit64u param0, int param1, int param2)
@@ -1605,7 +1620,11 @@ bool bx_real_sim_c::opt_plugin_ctrl(const char *plugname, bool load)
     return 1;
   }
   if (plugin_ctrl->get_by_name(plugname) == NULL) {
-    BX_PANIC(("Plugin '%s' not found", plugname));
+    if (load && (PLUG_find_plugin(plugname) != PLUGTYPE_NULL)) {
+      BX_WARN(("Plugin '%s' is not optional", plugname));
+    } else {
+      BX_PANIC(("Plugin '%s' not found", plugname));
+    }
     return 0;
   }
   if (load != PLUG_device_present(plugname, false)) {

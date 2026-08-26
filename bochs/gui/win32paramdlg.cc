@@ -211,7 +211,7 @@ void cleanupDlgList(bx_list_c *list)
 // tooltips code
 
 HWND hwndTT = NULL, tt_hwndDlg;
-HHOOK tt_hhk;
+HHOOK tt_hhk = NULL;
 const char *tt_text;
 
 BOOL CALLBACK EnumChildProc(HWND hwndCtrl, LPARAM lParam);
@@ -233,6 +233,9 @@ BOOL CreateParamDlgTooltip(HWND hwndDlg)
 
   if (!EnumChildWindows(tt_hwndDlg, (WNDENUMPROC) EnumChildProc, 0))
     return FALSE;
+
+  if (tt_hhk != NULL)
+    UnhookWindowsHookEx(tt_hhk);
 
   tt_hhk = SetWindowsHookEx(WH_GETMESSAGE, GetMsgProc,
     (HINSTANCE) NULL, GetCurrentThreadId());
@@ -532,7 +535,7 @@ HWND CreateGroupbox(HWND hDlg, UINT cid, UINT xpos, UINT ypos, SIZE size, BOOL h
   if (!root && (list->get_options() & list->USE_BOX_TITLE)) {
     title = list->get_title();
   }
-  Groupbox = CreateWindow("BUTTON", title, BS_GROUPBOX | WS_CHILD, r.left, r.top,
+  Groupbox = CreateWindowEx(WS_EX_TRANSPARENT, "BUTTON", title, BS_GROUPBOX | WS_CHILD, r.left, r.top,
                           r.right-r.left+1, r.bottom-r.top+1, hDlg, (HMENU)code, NULL, NULL);
   SendMessage(Groupbox, WM_SETFONT, (WPARAM)DlgFont, TRUE);
   ShowWindow(Groupbox, hide ? SW_HIDE : SW_SHOW);

@@ -24,6 +24,7 @@
 #define NEED_CPU_REG_SHORTCUTS 1
 #include "bochs.h"
 #include "cpu.h"
+#include "icache.h"
 #define LOG_THIS BX_CPU_THIS_PTR
 
 #if BX_SUPPORT_SVM
@@ -648,8 +649,12 @@ void BX_CPU_C::Svm_Vmexit(int reason, Bit64u exitinfo1, Bit64u exitinfo2)
 
   // VMEXITs are FAULT-like: restore RIP/RSP to value before VMEXIT occurred
   RIP = BX_CPU_THIS_PTR prev_rip;
-  if (BX_CPU_THIS_PTR speculative_rsp)
+  if (BX_CPU_THIS_PTR speculative_rsp) {
     RSP = BX_CPU_THIS_PTR prev_rsp;
+#if BX_SUPPORT_CET
+    SSP = BX_CPU_THIS_PTR prev_ssp;
+#endif
+  }
   BX_CPU_THIS_PTR speculative_rsp = false;
 
   mask_event(BX_EVENT_SVM_VIRQ_PENDING);
@@ -694,6 +699,7 @@ void BX_CPU_C::Svm_Vmexit(int reason, Bit64u exitinfo1, Bit64u exitinfo2)
   // STEP 3: Go back to SVM host
   //
 
+  BX_CPU_THIS_PTR activity_state = BX_ACTIVITY_STATE_ACTIVE;
   BX_CPU_THIS_PTR EXT = 0;
   BX_CPU_THIS_PTR last_exception_type = BX_ET_NONE; // error resolved
 
@@ -1029,7 +1035,7 @@ void BX_CPU_C::Svm_Update_VM_CR_MSR(Bit64u val_64)
 
 void BX_CPP_AttrRegparmN(1) BX_CPU_C::VMRUN(bxInstruction_c *i)
 {
-  if (! protected_mode() || ! BX_CPU_THIS_PTR efer.get_SVME())
+  if (! BX_CPU_THIS_PTR efer.get_SVME())
     exception(BX_UD_EXCEPTION, 0);
 
   if (CPL != 0) {
@@ -1096,7 +1102,7 @@ void BX_CPP_AttrRegparmN(1) BX_CPU_C::VMMCALL(bxInstruction_c *i)
 
 void BX_CPP_AttrRegparmN(1) BX_CPU_C::VMLOAD(bxInstruction_c *i)
 {
-  if (! protected_mode() || ! BX_CPU_THIS_PTR efer.get_SVME())
+  if (! BX_CPU_THIS_PTR efer.get_SVME())
     exception(BX_UD_EXCEPTION, 0);
 
   if (CPL != 0) {
@@ -1147,7 +1153,7 @@ void BX_CPP_AttrRegparmN(1) BX_CPU_C::VMLOAD(bxInstruction_c *i)
 
 void BX_CPP_AttrRegparmN(1) BX_CPU_C::VMSAVE(bxInstruction_c *i)
 {
-  if (! protected_mode() || ! BX_CPU_THIS_PTR efer.get_SVME())
+  if (! BX_CPU_THIS_PTR efer.get_SVME())
     exception(BX_UD_EXCEPTION, 0);
 
   if (CPL != 0) {
@@ -1191,7 +1197,7 @@ void BX_CPP_AttrRegparmN(1) BX_CPU_C::VMSAVE(bxInstruction_c *i)
 
 void BX_CPP_AttrRegparmN(1) BX_CPU_C::SKINIT(bxInstruction_c *i)
 {
-  if (! protected_mode() || ! BX_CPU_THIS_PTR efer.get_SVME())
+  if (! BX_CPU_THIS_PTR efer.get_SVME())
     exception(BX_UD_EXCEPTION, 0);
 
   if (CPL != 0) {
@@ -1210,7 +1216,7 @@ void BX_CPP_AttrRegparmN(1) BX_CPU_C::SKINIT(bxInstruction_c *i)
 
 void BX_CPP_AttrRegparmN(1) BX_CPU_C::CLGI(bxInstruction_c *i)
 {
-  if (! protected_mode() || ! BX_CPU_THIS_PTR efer.get_SVME())
+  if (! BX_CPU_THIS_PTR efer.get_SVME())
     exception(BX_UD_EXCEPTION, 0);
 
   if (CPL != 0) {
@@ -1229,7 +1235,7 @@ void BX_CPP_AttrRegparmN(1) BX_CPU_C::CLGI(bxInstruction_c *i)
 
 void BX_CPP_AttrRegparmN(1) BX_CPU_C::STGI(bxInstruction_c *i)
 {
-  if (! protected_mode() || ! BX_CPU_THIS_PTR efer.get_SVME())
+  if (! BX_CPU_THIS_PTR efer.get_SVME())
     exception(BX_UD_EXCEPTION, 0);
 
   if (CPL != 0) {
@@ -1249,7 +1255,7 @@ void BX_CPP_AttrRegparmN(1) BX_CPU_C::STGI(bxInstruction_c *i)
 
 void BX_CPP_AttrRegparmN(1) BX_CPU_C::INVLPGA(bxInstruction_c *i)
 {
-  if (! protected_mode() || ! BX_CPU_THIS_PTR efer.get_SVME())
+  if (! BX_CPU_THIS_PTR efer.get_SVME())
     exception(BX_UD_EXCEPTION, 0);
 
   if (CPL != 0) {
