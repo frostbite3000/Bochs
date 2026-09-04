@@ -574,6 +574,7 @@ private:
   void   redraw_area(Bit32s x0, Bit32s y0, Bit32u width, Bit32u height);
   Bit32u scanout_addr(Bit32u sy, Bit32u sx, Bit32u xoff);
   int    scanout_crtc(void);
+  void   scanout_refresh(void);
   bool   ext_mode(void);
   void   ddc_gpio_write(int port);
   Bit32u ddc_gpio_read(int port);
@@ -924,6 +925,7 @@ private:
   // Derived scanout state
   bool     disp_ext;
   int      disp_crtc;
+  int      disp_output;      // R9800_OUT_*: the output feeding the emulated monitor
   unsigned disp_xres, disp_yres, disp_bpp, disp_pitch;
   Bit32u   disp_base;
   bool     disp_dblscan;

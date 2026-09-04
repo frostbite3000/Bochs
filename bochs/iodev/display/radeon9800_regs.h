@@ -259,7 +259,26 @@
 #define R9800_CRTC_MORE_CNTL        0x027c
 #define R9800_DAC_EXT_CNTL          0x0280
 #define R9800_FP_GEN_CNTL           0x0284
+#define R9800_FP_FPON               (1 << 0)
+#define R9800_FP_SRC_SEL_MASK       (3 << 10)   // R200+ layout: 0 CRTC1, 1 CRTC2, 2 RMX, 3 TRANS
+#define R9800_FP_SRC_SEL_CRTC2      (1 << 10)
 #define R9800_FP2_GEN_CNTL          0x0288
+#define R9800_FP2_ON                (1 << 2)
+#define R9800_FP2_SRC_SEL_MASK      (3 << 10)
+#define R9800_FP2_SRC_SEL_CRTC2     (1 << 10)
+// TV_DAC_CNTL
+#define R9800_TV_DAC_NBLANK         (1 << 0)
+#define R9800_TV_DAC_RDACPD         (1 << 24)
+#define R9800_TV_DAC_GDACPD         (1 << 25)
+#define R9800_TV_DAC_BDACPD         (1 << 26)
+// DISP_OUTPUT_CNTL TV DAC source
+#define R9800_DISP_TVDAC_SOURCE_MASK  (3 << 2)
+#define R9800_DISP_TVDAC_SOURCE_CRTC2 (1 << 2)
+// which output the emulated monitor is attached to
+#define R9800_OUT_DAC1              0
+#define R9800_OUT_TMDS1             1
+#define R9800_OUT_TVDAC             2
+#define R9800_OUT_TMDS2             3
 #define R9800_FP_HORZ_STRETCH       0x028c
 #define R9800_FP_VERT_STRETCH       0x0290
 #define R9800_FP_H_SYNC_STRT_WID    0x02c4

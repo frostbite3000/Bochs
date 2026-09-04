@@ -241,6 +241,7 @@ void bx_radeon9800_c::init_members(void)
   memset(palette30, 0, sizeof(palette30));
   disp_ext = false;
   disp_crtc = 0;
+  disp_output = R9800_OUT_DAC1;
   disp_xres = 640;
   disp_yres = 480;
   disp_bpp = 8;
@@ -1947,6 +1948,7 @@ bool bx_radeon9800_c::core_reg_write(Bit32u off, Bit32u val, Bit32u mask)
       Bit32u old = disp_output_cntl;
       MERGE(disp_output_cntl);
       if ((old ^ disp_output_cntl) & 0x0f) {
+        scanout_refresh();
         needs_update_mode = true;
         needs_update_dispentire = true;
         timing_update();
@@ -1961,7 +1963,16 @@ bool bx_radeon9800_c::core_reg_write(Bit32u off, Bit32u val, Bit32u mask)
     case R9800_DISP_LIN_TRANS_GRPH_F: case R9800_DISP_LIN_TRANS_GRPH_G: case R9800_DISP_LIN_TRANS_GRPH_H:
       MERGE(disp_lin_trans[(off - R9800_DISP_LIN_TRANS_GRPH_A) >> 2]);
       return true;
-    case R9800_TV_DAC_CNTL: MERGE(tv_dac_cntl); return true;
+    case R9800_TV_DAC_CNTL: {
+      Bit32u old = tv_dac_cntl;
+      MERGE(tv_dac_cntl);
+      if ((old ^ tv_dac_cntl) & (R9800_TV_DAC_RDACPD | R9800_TV_DAC_GDACPD | R9800_TV_DAC_BDACPD | R9800_TV_DAC_NBLANK)) {
+        scanout_refresh();
+        needs_update_mode = true;
+        needs_update_dispentire = true;
+      }
+      return true;
+    }
     case R9800_OV1_Y_X_START: case R9800_OV1_Y_X_END: case R9800_OV1_PIPELINE_CNTL:
       MERGE(ov1_regs[(off - R9800_OV1_Y_X_START) >> 2]);
       return true;
@@ -2497,13 +2508,61 @@ void bx_radeon9800_c::snapshot_take(int c)
 }
 
 // Which CRTC feeds the primary DAC (the emulated monitor)
+// The emulated monitor follows the first active output, in the order
+// primary DAC, internal TMDS, TV DAC, external TMDS/DVO. An output is
+// active when it is powered and its source CRTC runs an extended mode
+// (CRTC1: EXT_DISP_EN, CRTC2: CRTC2_EN). With nothing active the primary
+// DAC shows CRTC1 (VGA core).
 int bx_radeon9800_c::scanout_crtc(void)
 {
-  if ((disp_output_cntl & R9800_DISP_DAC_SOURCE_MASK) == 1) {
-    if (crtc2_gen_cntl & R9800_CRTC_EN)
-      return 1;
+  Bit32u fp = fp_regs[(R9800_FP_GEN_CNTL - R9800_FP_CRTC_H_TOTAL_DISP) >> 2];
+  Bit32u fp2 = fp_regs[(R9800_FP2_GEN_CNTL - R9800_FP_CRTC_H_TOTAL_DISP) >> 2];
+  bool crtc1_ext = (crtc_gen_cntl & R9800_CRTC_EXT_DISP_EN) != 0;
+  bool crtc2_on = (crtc2_gen_cntl & R9800_CRTC_EN) != 0;
+  struct { bool on; int src; int out; } o[4];
+
+  o[0].out = R9800_OUT_DAC1;
+  o[0].on = !(dac_cntl & R9800_DAC_PDWN);
+  o[0].src = ((disp_output_cntl & R9800_DISP_DAC_SOURCE_MASK) == 1) ? 1 : 0;
+  o[1].out = R9800_OUT_TMDS1;
+  o[1].on = (fp & R9800_FP_FPON) != 0;
+  o[1].src = ((fp & R9800_FP_SRC_SEL_MASK) == R9800_FP_SRC_SEL_CRTC2) ? 1 : 0;
+  o[2].out = R9800_OUT_TVDAC;
+  o[2].on = (tv_dac_cntl & (R9800_TV_DAC_RDACPD | R9800_TV_DAC_GDACPD | R9800_TV_DAC_BDACPD)) !=
+            (R9800_TV_DAC_RDACPD | R9800_TV_DAC_GDACPD | R9800_TV_DAC_BDACPD);
+  o[2].src = ((disp_output_cntl & R9800_DISP_TVDAC_SOURCE_MASK) == R9800_DISP_TVDAC_SOURCE_CRTC2) ? 1 : 0;
+  o[3].out = R9800_OUT_TMDS2;
+  o[3].on = (fp2 & R9800_FP2_ON) != 0;
+  o[3].src = ((fp2 & R9800_FP2_SRC_SEL_MASK) == R9800_FP2_SRC_SEL_CRTC2) ? 1 : 0;
+
+  for (int i = 0; i < 4; i++) {
+    if (!o[i].on) continue;
+    if (o[i].src ? crtc2_on : crtc1_ext) {
+      disp_output = o[i].out;
+      return o[i].src;
+    }
   }
+  disp_output = R9800_OUT_DAC1;
+  // primary DAC routed to CRTC2 with nothing else running
+  if (o[0].on && (o[0].src == 1) && crtc2_on)
+    return 1;
   return 0;
+}
+
+// Re-evaluate which CRTC / output is shown after a routing register write
+void bx_radeon9800_c::scanout_refresh(void)
+{
+  int old_crtc = disp_crtc;
+  bool old_ext = disp_ext;
+  int c = scanout_crtc();
+  disp_ext = c ? ((crtc2_gen_cntl & R9800_CRTC_EN) != 0) : ((crtc_gen_cntl & R9800_CRTC_EXT_DISP_EN) != 0);
+  if ((c != old_crtc) || (disp_ext != old_ext)) {
+    disp_crtc = c;
+    update_banking();
+    needs_update_mode = true;
+    needs_update_dispentire = true;
+    timing_update();
+  }
 }
 
 bool bx_radeon9800_c::display_reg_read(Bit32u off, Bit32u *val)
@@ -2643,7 +2702,7 @@ bool bx_radeon9800_c::display_reg_write(Bit32u off, Bit32u val, Bit32u mask)
       MERGE(crtc_gen_cntl);
       if (!was_ext && (crtc_gen_cntl & R9800_CRTC_EXT_DISP_EN))
         crtc[0].v_disp_active = (crtc[0].v_total_disp >> 16) & 0x7ff;
-      disp_ext = (crtc_gen_cntl & R9800_CRTC_EXT_DISP_EN) != 0;
+      scanout_refresh();
       // CRTC_CUR_EN [16] and CRTC_CUR_MODE [22:20] only feed the cursor
       if ((gen_old ^ crtc_gen_cntl) & ~(R9800_CRTC_CUR_EN | R9800_CRTC_CUR_MODE_MASK | R9800_CRTC_ICON_EN)) {
         update_banking();
@@ -2658,6 +2717,7 @@ bool bx_radeon9800_c::display_reg_write(Bit32u off, Bit32u val, Bit32u mask)
       MERGE(crtc2_gen_cntl);
       if (!(gen_old & R9800_CRTC_EN) && (crtc2_gen_cntl & R9800_CRTC_EN))
         crtc[1].v_disp_active = (crtc[1].v_total_disp >> 16) & 0x7ff;
+      scanout_refresh();
       if ((gen_old ^ crtc2_gen_cntl) & ~(R9800_CRTC_CUR_EN | R9800_CRTC_CUR_MODE_MASK | R9800_CRTC_ICON_EN)) {
         needs_update_mode = true;
         needs_update_dispentire = true;
@@ -2680,6 +2740,8 @@ bool bx_radeon9800_c::display_reg_write(Bit32u off, Bit32u val, Bit32u mask)
       MERGE(dac_cntl);
       dac_cntl &= 0x00ffff7f;
       if ((dac_old ^ dac_cntl) & (R9800_DAC_4BPP_PIX_ORDER | R9800_DAC_PDWN | R9800_DAC_8BIT_EN | R9800_DAC_BLANKING)) {
+        if ((dac_old ^ dac_cntl) & R9800_DAC_PDWN)
+          scanout_refresh();
         needs_update_mode = true;
         needs_update_dispentire = true;
       }
@@ -2772,7 +2834,16 @@ bool bx_radeon9800_c::display_reg_write(Bit32u off, Bit32u val, Bit32u mask)
       ((off < R9800_CUR_OFFSET) || (off > R9800_CUR_CLR1)) && (off != R9800_DAC_EXT_CNTL) &&
       (off != R9800_CRTC_MORE_CNTL) && (off != R9800_TMDS_CRC) && (off != R9800_TMDS_TRANSMITTER_CNTL) &&
       (off != R9800_TMDS_PLL_CNTL)) {
-    MERGE(fp_regs[(off - R9800_FP_CRTC_H_TOTAL_DISP) >> 2]);
+    Bit32u *fr = &fp_regs[(off - R9800_FP_CRTC_H_TOTAL_DISP) >> 2];
+    Bit32u fold = *fr;
+    MERGE(*fr);
+    // TMDS enable / CRTC source changes reroute the emulated monitor
+    if (((off == R9800_FP_GEN_CNTL) && ((fold ^ *fr) & (R9800_FP_FPON | R9800_FP_SRC_SEL_MASK))) ||
+        ((off == R9800_FP2_GEN_CNTL) && ((fold ^ *fr) & (R9800_FP2_ON | R9800_FP2_SRC_SEL_MASK)))) {
+      scanout_refresh();
+      needs_update_mode = true;
+      needs_update_dispentire = true;
+    }
     return true;
   }
   struct r9800_crtc_t *ct = &crtc[c];
@@ -2950,6 +3021,7 @@ void bx_radeon9800_c::display_reset(void)
   mem_vga_rp_sel = 0;
   disp_ext = false;
   disp_crtc = 0;
+  disp_output = R9800_OUT_DAC1;
   update_banking();
   needs_update_mode = true;
   needs_update_dispentire = true;
@@ -3081,7 +3153,13 @@ void bx_radeon9800_c::update_mode(void)
   }
   disp_dac_const = false;
   disp_dac_const_color = 0;
-  if ((dac_cntl & R9800_DAC_PDWN) || ((dac_cntl & R9800_DAC_BLANKING) && !disp_blank)) {
+  if (disp_output == R9800_OUT_TVDAC) {
+    // TV DAC output: blanked while NBLANK is low
+    if (!(tv_dac_cntl & R9800_TV_DAC_NBLANK) && !disp_blank)
+      disp_dac_const = true;
+  } else if (disp_output != R9800_OUT_DAC1) {
+    // TMDS outputs carry the CRTC pixels unblanked
+  } else if ((dac_cntl & R9800_DAC_PDWN) || ((dac_cntl & R9800_DAC_BLANKING) && !disp_blank)) {
     disp_dac_const = true;
   } else if ((dac_ext_cntl & R9800_DAC_FORCE_DATA_EN) && !disp_blank) {
     Bit32u v = (dac_ext_cntl >> R9800_DAC_FORCE_DATA_SHIFT) & 0x3ff;
