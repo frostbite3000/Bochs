@@ -2478,6 +2478,13 @@ SMP, x86_64 support) and the devices options (e.g. PCI, USB, Cirrus graphics).
       </entry>
     </row>
     <row>
+      <entry>--enable-radeon9800</entry>
+      <entry>no</entry>
+      <entry>Enable ATI Radeon 9800 (R350) emulation. This AGP graphics card requires
+      PCI support and should be assigned to the AGP slot. For more information see <xref linkend="radeon9800-notes">.
+      </entry>
+    </row>
+    <row>
       <entry>--enable-iodebug</entry>
       <entry>yes if debugger is on</entry>
       <entry>
@@ -3762,7 +3769,8 @@ as VGA BIOS), 'voodoo' for Voodoo Graphics support (needs
 <filename>VGABIOS-lgpl-latest-banshee.bin</filename> as VGA BIOS / see
 <xref linkend="voodoo-notes"> for more information), 'geforce' for experimental GeForce
 support (needs external VGABIOS / see <xref linkend="geforce-notes"> for more information)
-and 'rage128' for ATI Rage 128 PRO support (needs external VGABIOS / see <xref linkend="rage128-notes"> for more information).
+'rage128' for ATI Rage 128 PRO support (needs external VGABIOS / see <xref linkend="rage128-notes"> for more information)
+and 'radeon9800' for ATI Radeon 9800 support (needs external VGABIOS / see <xref linkend="radeon9800-notes"> for more information).
 </para>
 <para>
 The VGA update frequency specifies the number of display updates per second.
@@ -3840,6 +3848,26 @@ default 32). The optional 'rage128' line sets the number of render threads
 used by the 3D rasterizer (1 to 8, default 1).
 The gui screen update timing is controlled by the related 'vga' options.
 See <xref linkend="rage128-notes"> for more information.
+</para>
+</section>
+
+<section>
+<title>radeon9800</title>
+<para>
+Example:
+<screen>
+  vga: extension=radeon9800, vbe_memsize=128
+  radeon9800: threads=4, asicrev=0
+</screen>
+This defines the ATI Radeon 9800 (R350) emulation. This 2D/3D card requires
+an external VGA BIOS (the Radeon 9800 video BIOS image), the vga extension option
+to be set to 'radeon9800' and the 'radeon9800' device assigned to a PCI slot or
+(with the i440BX chipset) to the AGP slot #5. The 'vbe_memsize' value selects the
+video memory size in MB (64, 128 or 256, default 128). The optional 'radeon9800' line
+sets the number of render threads used by the 3D rasterizer (1 to 8, default 1)
+and the ASIC revision reported in CONFIG_CNTL (0 to 15, default 0).
+The gui screen update timing is controlled by the related 'vga' options.
+See <xref linkend="radeon9800-notes"> for more information.
 </para>
 </section>
 
@@ -3987,8 +4015,8 @@ slot for PCI-only devices is also supported, but they are auto-assigned if
 not specified (e1000, es1370, pcidev, pcipnic, usb_ehci, usb_ohci, usb_xhci,
 voodoo). All device models except the network devices ne2k and e1000 can be
 used only once in the slot configuration. In case of the i440BX chipset, the
-slot #5 is the AGP slot. Currently only the 'voodoo', 'geforce' and 'rage128' devices can
-be assigned to AGP.
+slot #5 is the AGP slot. Currently only the 'voodoo', 'geforce', 'rage128' and
+'radeon9800' devices can be assigned to AGP.
 </para>
 <para><command>advopts</command></para>
 <para>
@@ -10224,6 +10252,60 @@ Bochs VBE Display Drivers for Windows NT/2000
   (<filename>bios/SeaBIOS/bios.bin-1.16.0</filename>) the ROM receives the real
   device address; with the Bochs ROM BIOS the emulated card pre-seeds its
   BIOS_1_SCRATCH register so the ROM's IO-base locator still finds the IO BAR.
+  </para>
+</section>
+
+<section id="radeon9800-notes">
+  <title>Notes about ATI Radeon 9800 emulation usage</title>
+
+  <para>
+  The ATI Radeon 9800 emulation implements the R350 graphics chip as found on
+  the Radeon 9800 / 9800 XL boards (PCI device ID 4E48, secondary function
+  4E68, subsystem 1787:8500). The model provides the VGA-compatible core, two
+  CRTC/PLL/DAC display paths (8 to 32 bpp, tiled scanout), the hardware cursor
+  (monochrome and 32-bit ARGB), the 2D GUI engine (register triggered and PM4
+  packets), the PM4 command processor with ring buffer, indirect buffers, PCI
+  GART and AGP aperture bus mastering, the R300 3D pipeline (programmable
+  vertex shader with clipping, rasterizer routing, fragment shader with up to
+  16 textures including DXT and cube/volume maps, Z/stencil with fast clear
+  masks, alpha blending, fog, multisample rendering with resolve) and the OV0
+  video overlay with subpicture. The emulation requires the Radeon 9800 video
+  BIOS image; the PCI vendor/device/subsystem IDs and the configuration straps
+  presented by the emulation are the ones this BIOS and the ATI driver INFs
+  expect.
+  </para>
+  <para>
+  These bochsrc settings are required (i440BX chipset, AGP slot #5):
+  <screen>
+  vga: extension=radeon9800, vbe_memsize=128
+  pci: chipset=i440bx, slot5=radeon9800
+  vgaromimage: file=medion-radeon-9800xl-ver-100-at25f512.bin
+  </screen>
+  The device can also be assigned to a regular PCI slot; it then appears as a
+  multi-function PCI device. On the AGP bus the secondary function (class 0380)
+  is exposed as function 1 of AGP device 0. The 'vbe_memsize' value selects the
+  video memory size (64, 128 or 256 MB).
+  </para>
+  <para>
+  The 3D rasterizer can use several host threads, and the ASIC revision
+  reported in the CONFIG_CNTL register can be selected; both are set with the
+  optional 'radeon9800' option:
+  <screen>
+  radeon9800: threads=4, asicrev=0
+  </screen>
+  Some Windows drivers refuse to start (Code 24 in Windows 9x, Code 10 in
+  Windows NT/2000/XP) when the ASIC revision does not match the one the
+  driver INF was written for; the 'asicrev' value selects the revision field
+  (bits 19:16 of CONFIG_CNTL) presented to the driver.
+  </para>
+  <para>
+  The video BIOS locates its registers through the PCI bus/device/function
+  the system BIOS hands to its init entry in AX and the PCI BIOS BAR query.
+  Both shipped system BIOS images work: with SeaBIOS the ROM receives the real
+  device address; with the Bochs ROM BIOS the emulated card pre-seeds its
+  BIOS_1_SCRATCH register so the ROM's IO-base locator still finds the IO BAR.
+  This is also what makes VESA colour modes (e.g. the 32 bpp tests of VBETest)
+  work with the Bochs ROM BIOS.
   </para>
 </section>
 

@@ -608,7 +608,7 @@ private:
     bool enabled;
 #if BX_SUPPORT_PCI
     Bit32u advopts;
-    Bit8u handler_id[0x101];  // 256 PCI devices/functions + 1 AGP device
+    Bit8u handler_id[0x108];  // 256 PCI devices/functions + 1 AGP device (8 functions)
     struct {
       bx_pci_device_c *handler;
     } pci_handler[BX_MAX_PCI_DEVICES];

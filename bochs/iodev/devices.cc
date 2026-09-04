@@ -306,7 +306,7 @@ void bx_devices_c::init(BX_MEM_C *newmem)
       pci.pci_handler[i].handler = NULL;
     }
 
-    for (i=0; i < 0x101; i++) {
+    for (i=0; i < 0x108; i++) {
       pci.handler_id[i] = BX_MAX_PCI_DEVICES;  // not assigned
     }
 
@@ -563,7 +563,7 @@ Bit32u bx_devices_c::read(Bit32u address, unsigned io_len)
       if ((BX_DEV_THIS pci.confAddr & 0x80fe0000) == 0x80000000) {
         bus_devfunc = (BX_DEV_THIS pci.confAddr >> 8) & 0x1ff;
         regnum = (BX_DEV_THIS pci.confAddr & 0xfc) + (address & 0x03);
-        if (bus_devfunc <= 0x100) {
+        if (bus_devfunc < 0x108) {
           handle = BX_DEV_THIS pci.handler_id[bus_devfunc];
           if ((io_len <= 4) && (handle < BX_MAX_PCI_DEVICES)) {
             retval = BX_DEV_THIS pci.pci_handler[handle].handler->pci_read_handler(regnum, io_len);
@@ -615,7 +615,7 @@ void bx_devices_c::write(Bit32u address, Bit32u value, unsigned io_len)
         bus = (BX_DEV_THIS pci.confAddr >> 16) & 0xff;
         devfunc = (BX_DEV_THIS pci.confAddr >> 8) & 0xff;
         bus_devfunc = (bus << 8) | devfunc;
-        if (bus_devfunc <= 0x100) {
+        if (bus_devfunc < 0x108) {
           handle = BX_DEV_THIS pci.handler_id[bus_devfunc];
           if (handle != BX_MAX_PCI_DEVICES) {
             dev = BX_DEV_THIS pci.pci_handler[handle].handler;
@@ -643,7 +643,7 @@ void bx_devices_c::write(Bit32u address, Bit32u value, unsigned io_len)
       if ((BX_DEV_THIS pci.confAddr & 0x80fe0000) == 0x80000000) {
         bus_devfunc = (BX_DEV_THIS pci.confAddr >> 8) & 0x1ff;
         Bit8u regnum = (BX_DEV_THIS pci.confAddr & 0xfc) + (address & 0x03);
-        if (bus_devfunc <= 0x100) {
+        if (bus_devfunc < 0x108) {
           handle = BX_DEV_THIS pci.handler_id[bus_devfunc];
           if ((io_len <= 4) && (handle < BX_MAX_PCI_DEVICES)) {
             BX_DEV_THIS pci.pci_handler[handle].handler->pci_write_handler_common(regnum, value, io_len);
@@ -1502,8 +1502,9 @@ bool bx_devices_c::register_pci_handlers(bx_pci_device_c *dev,
       }
       bus_devfunc = *devfunc;
     } else if ((bus == 1) && (max_pci_slots == 4)) {
+      // AGP bus: device #0 with up to 8 functions
       pci.slot_used[4] = true;
-      bus_devfunc = 0x100;
+      bus_devfunc = 0x100 | (*devfunc & 0x07);
     } else {
       BX_PANIC(("Invalid bus number #%d", bus));
       return false;
@@ -1523,7 +1524,7 @@ bool bx_devices_c::register_pci_handlers(bx_pci_device_c *dev,
       BX_INFO(("%s present at device %d, function %d", descr, *devfunc >> 3,
                *devfunc & 0x07));
     } else {
-      BX_INFO(("%s present on AGP bus device #0", descr));
+      BX_INFO(("%s present on AGP bus device #0, function %d", descr, bus_devfunc & 0x07));
     }
     dev->set_name(descr);
     return true; // device/function mapped successfully

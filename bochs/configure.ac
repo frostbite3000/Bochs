@@ -2034,6 +2034,28 @@ AC_ARG_ENABLE(rage128,
     AC_DEFINE(BX_SUPPORT_RAGE128, 0)
     ]
   )
+
+AC_MSG_CHECKING(for ATI Radeon 9800 emulation)
+AC_ARG_ENABLE(radeon9800,
+  AS_HELP_STRING([--enable-radeon9800], [enable ATI Radeon 9800 emulation (no)]),
+  [if test "$enableval" = yes; then
+    AC_MSG_RESULT(yes)
+    if test "$pci" != "1"; then
+      AC_MSG_ERROR([ATI Radeon 9800 emulation requires PCI support])
+    fi
+    AC_DEFINE(BX_SUPPORT_RADEON9800, 1)
+    DISPLAY_OBJS="$DISPLAY_OBJS radeon9800.o"
+    DISPLAY_EXTRA_OBJS="$DISPLAY_EXTRA_OBJS radeon9800_2d.o radeon9800_3d.o radeon9800_pm4.o radeon9800_ov0.o"
+    DISPLAY_DLL_TARGETS="$DISPLAY_DLL_TARGETS bx_radeon9800.dll"
+   else
+    AC_MSG_RESULT(no)
+    AC_DEFINE(BX_SUPPORT_RADEON9800, 0)
+   fi],
+  [
+    AC_MSG_RESULT(no)
+    AC_DEFINE(BX_SUPPORT_RADEON9800, 0)
+    ]
+  )
 AC_SUBST(DISPLAY_OBJS)
 AC_SUBST(DISPLAY_EXTRA_OBJS)
 AC_SUBST(DISPLAY_DLL_TARGETS)
