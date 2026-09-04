@@ -10914,7 +10914,7 @@ block_count_rounded:
   lea  di, pnpbios_structure
 
 #if BX_PCIBIOS
-  ;; PCI Firmware Specification: a PCI expansion ROM's init entry is
+  ;; PCI Firmware Specification: the init entry of a PCI expansion ROM is
   ;; called with the bus/device/function of its device in AX (AH = bus,
   ;; AL = devfn). The ROM at 0xc0000 belongs to the PCI VGA-compatible
   ;; controller (rombios32 copied it there); look that device up. ROMs

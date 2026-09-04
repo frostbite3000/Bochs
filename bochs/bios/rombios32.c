@@ -620,6 +620,11 @@ typedef struct PCIDevice {
 static uint32_t pci_bios_io_addr;
 static uint32_t agp_bios_io_addr;
 static uint32_t pci_bios_mem_addr;
+/* AGP device: prefetchable ranges of all functions follow the
+   non-prefetchable ones, so that the two bridge windows do not overlap */
+static uint32_t agp_bios_pref_addr;
+static uint32_t agp_bios_mem_end;
+static int agp_multifunc;
 static uint32_t pci_bios_rom_start;
 /* host irqs corresponding to PCI irqs A-D */
 static uint8_t pci_irqs[4] = { 11, 9, 11, 9 };
@@ -751,81 +756,112 @@ static void bios_lock_shadow_ram(void)
     pci_config_writeb(d, 0x59, v);
 }
 
+/* number of functions of the AGP device (device #0 on bus 1) */
+static int pci_agp_num_functions(PCIDevice *d)
+{
+    return (pci_config_readb(d, PCI_HEADER_TYPE) & 0x80) ? 8 : 1;
+}
+
+/* Memory window the AGP bridge must forward for the given type. The
+   layout mirrors pci_bios_init_device(): the non-prefetchable ranges of
+   all functions come first (from 0xc0000000), the prefetchable ones
+   follow. */
 static uint32_t pci_get_agp_memory(PCIDevice *d, uint32_t type)
 {
+    PCIDevice d1, *fd = &d1;
     uint32_t addr, val, size, align, mask;
     uint16_t cmd, saddr = 0xffff, eaddr = 0;
-    int i, j, ofs;
+    int i, j, ofs, fn, nfn;
 
-    /* disable i/o and memory access */
-    cmd = pci_config_readw(d, PCI_COMMAND);
-    cmd &= 0xfffc;
-    pci_config_writew(d, PCI_COMMAND, cmd);
-    /* default memory mappings */
+    nfn = pci_agp_num_functions(d);
     addr = 0xc0000000;
     for(j = 0; j < 2; j++) {
         mask = (j == 1) ? PCI_ADDRESS_SPACE_MEM_PREFETCH : 0;
-        for(i = 0; i < PCI_NUM_REGIONS; i++) {
-            if (i == PCI_ROM_SLOT) {
-                ofs = PCI_ROM_ADDRESS;
-                pci_config_writel(d, ofs, 0xfffffffe);
-            } else {
-                ofs = PCI_BASE_ADDRESS_0 + i * 4;
-                pci_config_writel(d, ofs, 0xffffffff);
-            }
-            val = pci_config_readl(d, ofs);
-            if ((val != 0) && !(val & PCI_ADDRESS_SPACE_IO) &&
-                ((val & PCI_ADDRESS_SPACE_MEM_PREFETCH) == mask)) {
-                size = (~(val & ~0xf)) + 1;
-                align = 0x10000;
-                addr = (addr + size - 1) & ~(size - 1);
-                if ((val & PCI_ADDRESS_SPACE_MEM_PREFETCH) == type) {
-                    if (saddr == 0xffff) {
-                        saddr = (uint16_t)(addr >> 16);
-                    }
-                    eaddr = (uint16_t)((addr + size - 1) >> 16);
-                }
-                if (size < align) {
-                    addr += align;
+        if (j == 1) {
+            agp_bios_pref_addr = addr;
+        }
+        for(fn = 0; fn < nfn; fn++) {
+            fd->bus = d->bus;
+            fd->devfn = d->devfn + fn;
+            if (pci_config_readw(fd, PCI_VENDOR_ID) == 0xffff)
+                continue;
+            /* disable i/o and memory access */
+            cmd = pci_config_readw(fd, PCI_COMMAND);
+            cmd &= 0xfffc;
+            pci_config_writew(fd, PCI_COMMAND, cmd);
+            for(i = 0; i < PCI_NUM_REGIONS; i++) {
+                if (i == PCI_ROM_SLOT) {
+                    ofs = PCI_ROM_ADDRESS;
+                    pci_config_writel(fd, ofs, 0xfffffffe);
                 } else {
-                    addr += size;
+                    ofs = PCI_BASE_ADDRESS_0 + i * 4;
+                    pci_config_writel(fd, ofs, 0xffffffff);
+                }
+                val = pci_config_readl(fd, ofs);
+                if ((val != 0) && !(val & PCI_ADDRESS_SPACE_IO) &&
+                    ((val & PCI_ADDRESS_SPACE_MEM_PREFETCH) == mask)) {
+                    size = (~(val & ~0xf)) + 1;
+                    align = 0x10000;
+                    addr = (addr + size - 1) & ~(size - 1);
+                    if ((val & PCI_ADDRESS_SPACE_MEM_PREFETCH) == type) {
+                        if (saddr == 0xffff) {
+                            saddr = (uint16_t)(addr >> 16);
+                        }
+                        eaddr = (uint16_t)((addr + size - 1) >> 16);
+                    }
+                    if (size < align) {
+                        addr += align;
+                    } else {
+                        addr += size;
+                    }
+                    if ((val & 0x06) == PCI_ADDRESS_SPACE_MEM_64_BIT) {
+                        i++;
+                    }
                 }
             }
         }
     }
+    agp_bios_mem_end = addr;
     return (saddr | (eaddr << 16));
 }
 
 static uint16_t pci_get_agp_iobase(PCIDevice *d)
 {
+    PCIDevice d1, *fd = &d1;
     uint32_t val;
     uint16_t addr, align, cmd, size;
     uint8_t saddr = 0xf0, eaddr = 0;
-    int i, ofs;
+    int i, ofs, fn, nfn;
 
-    /* disable i/o and memory access */
-    cmd = pci_config_readw(d, PCI_COMMAND);
-    cmd &= 0xfffc;
-    pci_config_writew(d, PCI_COMMAND, cmd);
-    /* default memory mappings */
+    nfn = pci_agp_num_functions(d);
     addr = 0xe000;
-    for(i = 0; i < PCI_ROM_SLOT; i++) {
-        ofs = PCI_BASE_ADDRESS_0 + i * 4;
-        pci_config_writel(d, ofs, 0xffffffff);
-        val = pci_config_readl(d, ofs);
-        if ((val != 0) && (val & PCI_ADDRESS_SPACE_IO)) {
-            val &= 0xffff;
-            size = (~(val & ~0xf)) + 1;
-            align = 0x1000;
-            addr = (addr + size - 1) & ~(size - 1);
-            if (saddr == 0xf0) {
-                saddr = (uint8_t)(addr >> 8);
-            }
-            eaddr = (uint8_t)((addr + size - 1) >> 8);
-            if (size < align) {
-                addr += align;
-            } else {
-                addr += size;
+    for(fn = 0; fn < nfn; fn++) {
+        fd->bus = d->bus;
+        fd->devfn = d->devfn + fn;
+        if (pci_config_readw(fd, PCI_VENDOR_ID) == 0xffff)
+            continue;
+        /* disable i/o and memory access */
+        cmd = pci_config_readw(fd, PCI_COMMAND);
+        cmd &= 0xfffc;
+        pci_config_writew(fd, PCI_COMMAND, cmd);
+        for(i = 0; i < PCI_ROM_SLOT; i++) {
+            ofs = PCI_BASE_ADDRESS_0 + i * 4;
+            pci_config_writel(fd, ofs, 0xffffffff);
+            val = pci_config_readl(fd, ofs);
+            if ((val != 0) && (val & PCI_ADDRESS_SPACE_IO)) {
+                val &= 0xffff;
+                size = (~(val & ~0xf)) + 1;
+                align = 0x1000;
+                addr = (addr + size - 1) & ~(size - 1);
+                if (saddr == 0xf0) {
+                    saddr = (uint8_t)(addr >> 8);
+                }
+                eaddr = (uint8_t)((addr + size - 1) >> 8);
+                if (size < align) {
+                    addr += align;
+                } else {
+                    addr += size;
+                }
             }
         }
     }
@@ -1109,6 +1145,10 @@ static void pci_bios_init_device(PCIDevice *d)
         for(i = 0; i < PCI_NUM_REGIONS; i++) {
             init_bar[i] = 0;
         }
+        /* PCI devices are mapped behind the ranges of the AGP device */
+        if ((d->bus == 0) && (pci_bios_mem_addr < agp_bios_mem_end)) {
+            pci_bios_mem_addr = agp_bios_mem_end;
+        }
         /* default memory mappings */
         j = 0;
         do {
@@ -1138,7 +1178,11 @@ static void pci_bios_init_device(PCIDevice *d)
                                 align = 0x10;
                             }
                         } else {
-                            paddr = &pci_bios_mem_addr;
+                            if ((d->bus == 1) && (j == 1)) {
+                                paddr = &agp_bios_pref_addr;
+                            } else {
+                                paddr = &pci_bios_mem_addr;
+                            }
                             align = 0x10000;
                         }
                         *paddr = (*paddr + size - 1) & ~(size - 1);
@@ -1218,13 +1262,19 @@ void pci_for_each_device(void (*init_func)(PCIDevice *d))
     uint16_t vendor_id, device_id;
 
     for(bus = 1; bus >= 0; bus--) {
-        maxdev = (bus == 1) ? 1 : 256;
+        /* the AGP bus holds device #0 only, possibly with several functions */
+        maxdev = (bus == 1) ? 8 : 256;
         for(devfn = 0; devfn < maxdev; devfn++) {
+            if ((bus == 1) && (devfn > 0) && !agp_multifunc)
+                break;
             d->bus = bus;
             d->devfn = devfn;
             vendor_id = pci_config_readw(d, PCI_VENDOR_ID);
             device_id = pci_config_readw(d, PCI_DEVICE_ID);
             if (vendor_id != 0xffff || device_id != 0xffff) {
+                if ((bus == 1) && (devfn == 0)) {
+                    agp_multifunc = (pci_config_readb(d, PCI_HEADER_TYPE) & 0x80) != 0;
+                }
                 init_func(d);
             }
         }
@@ -1236,6 +1286,9 @@ void pci_bios_init(void)
     pci_bios_io_addr = 0xc000;
     agp_bios_io_addr = 0xe000;
     pci_bios_mem_addr = 0xc0000000;
+    agp_bios_pref_addr = 0;
+    agp_bios_mem_end = 0;
+    agp_multifunc = 0;
     pci_bios_rom_start = 0xc0000;
     chipset_i440bx = 0;
 
