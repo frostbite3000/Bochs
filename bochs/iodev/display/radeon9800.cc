@@ -2513,12 +2513,30 @@ void bx_radeon9800_c::snapshot_take(int c)
 // active when it is powered and its source CRTC runs an extended mode
 // (CRTC1: EXT_DISP_EN, CRTC2: CRTC2_EN). With nothing active the primary
 // DAC shows CRTC1 (VGA core).
+// Does a CRTC drive an extended (non-VGA) mode? CRTC_EXT_DISP_EN selects
+// the extended display path, but a driver may reprogram CRTC_GEN_CNTL for
+// its own mode and leave that bit alone: a running CRTC whose pixel format
+// is one the VGA core cannot express (15/16/24/32 bpp) with the extended
+// horizontal timing programmed is an extended mode as well. CRTC2 has no
+// VGA path at all, so being enabled is enough.
+bool bx_radeon9800_c::crtc_extended(int c)
+{
+  Bit32u pw;
+  if (c)
+    return (crtc2_gen_cntl & R9800_CRTC_EN) != 0;
+  if (crtc_gen_cntl & R9800_CRTC_EXT_DISP_EN)
+    return true;
+  pw = (crtc_gen_cntl >> R9800_CRTC_PIX_WIDTH_SHIFT) & 0xf;
+  return ((crtc_gen_cntl & R9800_CRTC_EN) != 0) && (pw >= 3) && (pw <= 6) &&
+         (((crtc[0].h_total_disp >> 16) & 0x1ff) != 0);
+}
+
 int bx_radeon9800_c::scanout_crtc(void)
 {
   Bit32u fp = fp_regs[(R9800_FP_GEN_CNTL - R9800_FP_CRTC_H_TOTAL_DISP) >> 2];
   Bit32u fp2 = fp_regs[(R9800_FP2_GEN_CNTL - R9800_FP_CRTC_H_TOTAL_DISP) >> 2];
-  bool crtc1_ext = (crtc_gen_cntl & R9800_CRTC_EXT_DISP_EN) != 0;
-  bool crtc2_on = (crtc2_gen_cntl & R9800_CRTC_EN) != 0;
+  bool crtc1_ext = crtc_extended(0);
+  bool crtc2_on = crtc_extended(1);
   struct { bool on; int src; int out; } o[4];
 
   o[0].out = R9800_OUT_DAC1;
@@ -2555,7 +2573,7 @@ void bx_radeon9800_c::scanout_refresh(void)
   int old_crtc = disp_crtc;
   bool old_ext = disp_ext;
   int c = scanout_crtc();
-  disp_ext = c ? ((crtc2_gen_cntl & R9800_CRTC_EN) != 0) : ((crtc_gen_cntl & R9800_CRTC_EXT_DISP_EN) != 0);
+  disp_ext = crtc_extended(c);
   if ((c != old_crtc) || (disp_ext != old_ext)) {
     disp_crtc = c;
     update_banking();
@@ -3385,6 +3403,10 @@ void bx_radeon9800_c::update(void)
   unsigned width, height;
 
   fold_deferred();
+  // Routing and mode state can change through registers that are not
+  // themselves display registers (indexed writes, ring packets); re-derive
+  // it here so the scanned-out CRTC is never stale.
+  scanout_refresh();
   if (!disp_ext && (scanout_crtc() == 0)) {
     if (ext_last) {
       ext_last = false;

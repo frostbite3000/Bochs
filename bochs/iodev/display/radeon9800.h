@@ -574,6 +574,7 @@ private:
   void   redraw_area(Bit32s x0, Bit32s y0, Bit32u width, Bit32u height);
   Bit32u scanout_addr(Bit32u sy, Bit32u sx, Bit32u xoff);
   int    scanout_crtc(void);
+  bool   crtc_extended(int c);
   void   scanout_refresh(void);
   bool   ext_mode(void);
   void   ddc_gpio_write(int port);
