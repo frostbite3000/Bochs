@@ -555,11 +555,14 @@ private:
   double test_clock_hz(void);
   Bit32u pll_read(void);
   void   pll_write(Bit32u val, Bit32u mask);
+  bool   pll_can_defer(int which);
+  void   pll_settle(void);
   void   palette_data_write(Bit32u val, Bit32u mask, bool wide);
   Bit32u palette_data_read(bool wide);
   void   palette_sync_gui(void);
   void   update_mode(void);
   void   latch_crtc_offset(int c);
+  void   crtc_settle(int c);
   void   cursor_publish(int c);
   void   cursor_frame_latch(void);
   void   timing_recalc(void);

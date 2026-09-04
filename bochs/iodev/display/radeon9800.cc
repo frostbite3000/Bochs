@@ -2098,7 +2098,7 @@ double bx_radeon9800_c::dot_clock_hz(void)
   }
   if ((pll_regs[R9800_PLL_VCLK_ECP_CNTL] & R9800_VCLK_SRC_SEL_MASK) != R9800_VCLK_SRC_PPLL)
     return ref_freq_hz;
-  if (crtc_gen_cntl & R9800_CRTC_EXT_DISP_EN)
+  if (crtc_extended(0))
     sel = (clock_cntl_index >> R9800_PLL_DIV_SEL_SHIFT) & 3;
   else
     sel = BX_R9800_THIS s.misc_output.clock_select & 3;
@@ -2164,6 +2164,38 @@ double bx_radeon9800_c::test_clock_hz(void)
 
 #define R9800_PLL_TEST_ACCESS_S (16.0 / 27000000.0)
 
+// An atomic divider update is held back to the next vertical blank only
+// while the CRTC it feeds is really scanning. During a mode set the PLL
+// and the CRTC are in reset and no vertical blank can arrive, so a
+// deferred update would never complete and a driver polling
+// PPLL_ATOMIC_UPDATE_R would spin forever.
+bool bx_radeon9800_c::pll_can_defer(int which)
+{
+  Bit32u cntl = pll_regs[which ? R9800_PLL_P2PLL_CNTL : R9800_PLL_PPLL_CNTL];
+  Bit32u gen = which ? crtc2_gen_cntl : crtc_gen_cntl;
+  if (cntl & (R9800_PPLL_RESET | R9800_PPLL_SLEEP))
+    return false;
+  if (!(gen & R9800_CRTC_EN))
+    return false;
+  return timing_valid;
+}
+
+// Retire a deferred update whose vertical blank can no longer arrive
+void bx_radeon9800_c::pll_settle(void)
+{
+  if (ppll_update_pending && !pll_can_defer(0)) {
+    ppll_commit();
+    ppll_update_pending = false;
+    timing_update();
+  }
+  if (p2pll_update_pending && !pll_can_defer(1)) {
+    p2pll_work[0] = pll_regs[R9800_PLL_P2PLL_REF_DIV];
+    p2pll_work[1] = pll_regs[R9800_PLL_P2PLL_DIV_0];
+    p2pll_update_pending = false;
+    timing_update();
+  }
+}
+
 Bit32u bx_radeon9800_c::pll_read(void)
 {
   int idx = clock_cntl_index & R9800_PLL_ADDR_MASK;
@@ -2173,10 +2205,12 @@ Bit32u bx_radeon9800_c::pll_read(void)
     case R9800_PLL_PPLL_REF_DIV:
     case R9800_PLL_PPLL_DIV_0: case R9800_PLL_PPLL_DIV_0 + 1:
     case R9800_PLL_PPLL_DIV_0 + 2: case R9800_PLL_PPLL_DIV_3:
+      pll_settle();
       v = (v & ~R9800_PPLL_ATOMIC_UPDATE) | (ppll_update_pending ? R9800_PPLL_ATOMIC_UPDATE : 0);
       break;
     case R9800_PLL_P2PLL_REF_DIV:
     case R9800_PLL_P2PLL_DIV_0:
+      pll_settle();
       v = (v & ~R9800_PPLL_ATOMIC_UPDATE) | (p2pll_update_pending ? R9800_PPLL_ATOMIC_UPDATE : 0);
       break;
     case R9800_PLL_PLL_TEST_CNTL: {
@@ -2219,7 +2253,7 @@ void bx_radeon9800_c::pll_write(Bit32u val, Bit32u mask)
       Bit32u cntl = pll_regs[R9800_PLL_PPLL_CNTL];
       bool atomic = (cntl & (R9800_PPLL_ATOMIC_UPDATE_EN | R9800_PPLL_VGA_ATOMIC_UPDATE_EN)) != 0;
       bool requested = (mask & R9800_PPLL_ATOMIC_UPDATE) && (merged & R9800_PPLL_ATOMIC_UPDATE);
-      if (atomic && requested && (cntl & R9800_PPLL_ATOMIC_UPDATE_VSYNC)) {
+      if (atomic && requested && (cntl & R9800_PPLL_ATOMIC_UPDATE_VSYNC) && pll_can_defer(0)) {
         ppll_update_pending = true;
         return;
       }
@@ -2236,7 +2270,7 @@ void bx_radeon9800_c::pll_write(Bit32u val, Bit32u mask)
       Bit32u cntl = pll_regs[R9800_PLL_P2PLL_CNTL];
       bool atomic = (cntl & (R9800_PPLL_ATOMIC_UPDATE_EN | R9800_PPLL_VGA_ATOMIC_UPDATE_EN)) != 0;
       bool requested = (mask & R9800_PPLL_ATOMIC_UPDATE) && (merged & R9800_PPLL_ATOMIC_UPDATE);
-      if (atomic && requested && (cntl & R9800_PPLL_ATOMIC_UPDATE_VSYNC)) {
+      if (atomic && requested && (cntl & R9800_PPLL_ATOMIC_UPDATE_VSYNC) && pll_can_defer(1)) {
         p2pll_update_pending = true;
         return;
       }
@@ -2368,6 +2402,20 @@ void bx_radeon9800_c::latch_crtc_offset(int c)
     needs_update_mode = true;
     needs_update_dispentire = true;
   }
+}
+
+// A programmed scanout offset is picked up at the next vertical blank.
+// A CRTC that is not scanning produces none, so a base programmed during
+// a mode set would otherwise stay pending and the display would keep
+// scanning from the previous, stale address.
+void bx_radeon9800_c::crtc_settle(int c)
+{
+  Bit32u gen = c ? crtc2_gen_cntl : crtc_gen_cntl;
+  if (!crtc[c].offset_pending || crtc[c].offset_lock)
+    return;
+  if ((gen & R9800_CRTC_EN) && timing_valid)
+    return;
+  latch_crtc_offset(c);
 }
 
 // CUR_LOCK is one flag surfaced as bit 31 of the three geometry registers:
@@ -2676,9 +2724,11 @@ bool bx_radeon9800_c::display_reg_read(Bit32u off, Bit32u *val)
     }
     case R9800_CRTC_DEBUG: *val = ct->debug; return true;
     case R9800_CRTC_OFFSET:
+      crtc_settle(c);
       *val = (ct->offset & 0x0fffffff) | (ct->offset_pending ? 0x40000000 : 0) | (ct->offset_lock ? 0x80000000 : 0);
       return true;
     case R9800_CRTC_OFFSET_CNTL:
+      crtc_settle(c);
       *val = (ct->offset_cntl & 0x3fffffff) | (ct->offset_pending ? 0x40000000 : 0) | (ct->offset_lock ? 0x80000000 : 0);
       return true;
     case R9800_CRTC_PITCH: *val = ct->pitch; return true;
@@ -3056,13 +3106,19 @@ void bx_radeon9800_c::get_crtc_params(bx_crtc_params_t *crtcp, Bit32u *vclock)
 
   if (!disp_ext && (c == 0)) {
     bx_vgacore_c::get_crtc_params(crtcp, vclock);
+    dot_hz = dot_clock_hz();
     if ((pll_regs[R9800_PLL_VCLK_ECP_CNTL] & R9800_VCLK_SRC_SEL_MASK) == R9800_VCLK_SRC_PPLL) {
-      dot_hz = dot_clock_hz();
       if (dot_hz >= 1000000.0) {
         *vclock = (Bit32u)dot_hz;
         if (BX_R9800_THIS s.x_dotclockdiv2) *vclock >>= 1;
       }
     }
+    // The VGA clock select can name a source the core has no frequency
+    // for, but the card always drives a pixel clock. Handing back zero
+    // makes the core drop the retrace timing, which stops the vertical
+    // blank everything else is sequenced from.
+    if (*vclock == 0)
+      *vclock = (Bit32u)((dot_hz >= 1000000.0) ? dot_hz : ref_freq_hz);
     return;
   }
   dot_hz = dot_clock_hz();
@@ -3208,6 +3264,7 @@ void bx_radeon9800_c::update_mode(void)
   disp_bpp = bpp;
   disp_pitch = pitch;
   // scanout address = DISPLAY_BASE_ADDR + CRTC_OFFSET (MC space)
+  crtc_settle(c);
   Bit32u mc = crtc[c].display_base + (crtc[c].offset_latched & 0x0fffffff);
   Bit32u off;
   if (!mc_is_vram(mc, &off))
