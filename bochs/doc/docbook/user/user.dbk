@@ -3857,7 +3857,7 @@ See <xref linkend="rage128-notes"> for more information.
 Example:
 <screen>
   vga: extension=radeon9800, vbe_memsize=128
-  radeon9800: threads=4, asicrev=0
+  radeon9800: threads=4, asicrev=0, trace=0
 </screen>
 This defines the ATI Radeon 9800 (R350) emulation. This 2D/3D card requires
 an external VGA BIOS (the Radeon 9800 video BIOS image), the vga extension option
@@ -10297,6 +10297,29 @@ Bochs VBE Display Drivers for Windows NT/2000
   Windows NT/2000/XP) when the ASIC revision does not match the one the
   driver INF was written for; the 'asicrev' value selects the revision field
   (bits 19:16 of CONFIG_CNTL) presented to the driver.
+  </para>
+  <para>
+  The 'trace' value turns on a register access trace for driver debugging. It
+  is a bit mask and defaults to 0, which disables tracing entirely:
+  <screen>
+  radeon9800: trace=4
+  </screen>
+  Bit 0 (value 1) logs every register write. Bit 1 (value 2) logs register
+  reads, collapsing a run of identical results into one line with a repeat
+  count. Bit 2 (value 4) reports a guest stuck in a wait loop, naming the
+  registers it keeps accessing and listing the register writes that led up to
+  it. Bit 3 (value 8) prints a periodic dump of the display, interrupt and
+  command processor state, including the scratch fence values. Bit 4
+  (value 16) logs every PM4 packet the command processor parses.
+  </para>
+  <para>
+  Bit 2 alone is the cheapest way to find a driver stuck polling a register,
+  since it stays silent until a stall is detected. A driver can also hang
+  waiting on a completion fence in memory, which it does without touching any
+  register at all; bit 3 catches that case, because the periodic dump keeps
+  reporting while the machine is wedged. Adding bit 0 produces a very large
+  log. 'trace=12' combines the stall detector with the periodic dump and is a
+  good starting point for a hang of unknown cause.
   </para>
   <para>
   The video BIOS locates its registers through the PCI bus/device/function

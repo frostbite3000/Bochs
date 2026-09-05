@@ -56,6 +56,10 @@ static const char *radeon9800_memsize_list[] = {
 
 static int radeon9800_cfg_threads = 1;
 static int radeon9800_cfg_asicrev = 0;   // CFG_ATI_REV_ID: 0 = A11, 1 = A12, 2 = A13
+// Register access trace (bochsrc 'trace='): bit 0 logs writes, bit 1 logs
+// reads with runs of identical results collapsed, bit 2 reports a guest
+// spinning on one register. 0 disables it and costs nothing.
+static int radeon9800_cfg_trace = 0;
 
 static void radeon9800_init_options(void)
 {
@@ -90,6 +94,11 @@ Bit32s bx_radeon9800_c::options_parser(const char *context, int num_params, char
         if (n < 0) n = 0;
         if (n > 15) n = 15;
         radeon9800_cfg_asicrev = n;
+      } else if (!strncmp(params[i], "trace=", 6)) {
+        int n = atoi(&params[i][6]);
+        if (n < 0) n = 0;
+        if (n > 31) n = 31;
+        radeon9800_cfg_trace = n;
       } else {
         if (theSvga != NULL)
           theSvga->error("%s: unknown parameter '%s' for radeon9800 ignored.", context, params[i]);
@@ -101,7 +110,8 @@ Bit32s bx_radeon9800_c::options_parser(const char *context, int num_params, char
 
 Bit32s bx_radeon9800_c::options_save(FILE *fp)
 {
-  return fprintf(fp, "radeon9800: threads=%d, asicrev=%d\n", radeon9800_cfg_threads, radeon9800_cfg_asicrev);
+  return fprintf(fp, "radeon9800: threads=%d, asicrev=%d, trace=%d\n",
+                 radeon9800_cfg_threads, radeon9800_cfg_asicrev, radeon9800_cfg_trace);
 }
 
 // ---------------------------------------------------------------------
@@ -199,6 +209,7 @@ bool bx_radeon9800_c::init_vga_extension(void)
 
   render_threads = radeon9800_cfg_threads;
   asic_rev = radeon9800_cfg_asicrev;
+  trace_mask = radeon9800_cfg_trace;
   ref_freq_hz = R9800_REF_FREQ_HZ;
   vga_disabled = false;
 
@@ -222,6 +233,8 @@ bool bx_radeon9800_c::init_vga_extension(void)
   BX_INFO(("ATI Radeon 9800 (R350, %s, %u MB, %d render thread%s) initialized",
            is_agp ? "AGP" : "PCI", vram_size >> 20, render_threads,
            (render_threads == 1) ? "" : "s"));
+  if (trace_mask)
+    BX_INFO(("register access trace enabled (trace=%d)", trace_mask));
 #if BX_DEBUGGER
   bx_dbg_register_debug_info("radeon9800", this);
 #endif
@@ -231,6 +244,31 @@ bool bx_radeon9800_c::init_vga_extension(void)
 void bx_radeon9800_c::init_members(void)
 {
   mm_index = 0;
+  trace_rd_off = 0xffffffff;
+  trace_rd_val = 0;
+  trace_rd_idx = 0xffffffff;
+  trace_rd_run = 0;
+  trace_rd_valid = false;
+  trace_run_off = 0xffffffff;
+  trace_run_idx = 0xffffffff;
+  trace_run_len = 0;
+  trace_run_first = 0;
+  trace_run_last = 0;
+  trace_run_varies = false;
+  trace_blk_total = 0;
+  trace_blk_n = 0;
+  trace_irq_count = 0;
+  trace_irq_level = false;
+  trace_hb_frames = 0;
+  trace_fence_probes = 0;
+  memset(trace_blk_off, 0, sizeof(trace_blk_off));
+  memset(trace_blk_cnt, 0, sizeof(trace_blk_cnt));
+  trace_wr_pos = 0;
+  trace_wr_seen = 0;
+  trace_polls = 0;
+  memset(trace_wr_off, 0, sizeof(trace_wr_off));
+  memset(trace_wr_val, 0, sizeof(trace_wr_val));
+  memset(trace_wr_idx, 0, sizeof(trace_wr_idx));
   memset(bios_scratch, 0, sizeof(bios_scratch));
   memset(pll_regs, 0, sizeof(pll_regs));
   memset(ppll_work, 0, sizeof(ppll_work));
@@ -688,6 +726,9 @@ bool bx_radeon9800_sec_c::mem_write_handler(bx_phy_address addr, unsigned len, v
 
 void bx_radeon9800_c::set_irq_level(bool level)
 {
+  if (level && !trace_irq_level)
+    trace_irq_count++;
+  trace_irq_level = level;
   DEV_pci_set_irq(devfunc, pci_conf[0x3d], level);
 }
 
@@ -800,6 +841,12 @@ void bx_radeon9800_c::vertical_timer(void)
 {
   bx_vgacore_c::vertical_timer();
   fold_deferred();
+  if ((trace_mask & 8) && BX_R9800_THIS vtimer_toggle) {
+    if (++trace_hb_frames >= R9800_TRACE_HB_FRAMES) {
+      trace_hb_frames = 0;
+      trace_heartbeat();
+    }
+  }
   if (BX_R9800_THIS vtimer_toggle) {
     // vertical blank / sync started
     crtc[0].vblank_save = true;
@@ -972,6 +1019,7 @@ void bx_radeon9800_c::register_state(void)
   new bx_shadow_num_c(pm4, "csq_cntl", &cp_csq_cntl, BASE_HEX);
   new bx_shadow_num_c(pm4, "csq_mode", &cp_csq_mode, BASE_HEX);
   new bx_shadow_num_c(pm4, "me_ram_addr", &cp_me_ram_addr, BASE_HEX);
+  new bx_shadow_num_c(pm4, "vc_debug_config", &cp_vc_debug_config, BASE_HEX);
   new bx_shadow_data_c(pm4, "me_ram", (Bit8u*)cp_me_ram, sizeof(cp_me_ram));
 
   bx_list_c *t3 = new bx_list_c(list, "r3d");
@@ -1209,6 +1257,25 @@ bool bx_radeon9800_c::mc_is_vram(Bit32u mc, Bit32u *vram_off)
     *vram_off = (mc - fb_start) & vram_mask;
     return true;
   }
+  return false;
+}
+
+// Does an MC address land in a window the memory controller actually maps?
+// Anything outside them falls back to a raw bus-master access at the same
+// numeric address, so treating a small value as an address would scribble
+// over low guest physical memory.
+bool bx_radeon9800_c::mc_addr_is_mapped(Bit32u mc)
+{
+  Bit32u off;
+  Bit32u agp_start = (mc_agp_location & 0xffff) << 16;
+  Bit32u agp_top = (mc_agp_location & 0xffff0000) | 0xffff;
+
+  if (mc_is_vram(mc, &off))
+    return true;
+  if (agp_base && (agp_start <= agp_top) && (mc >= agp_start) && (mc <= agp_top))
+    return true;
+  if ((aic_cntl & R9800_AIC_TRANSLATE_EN) && (mc >= aic_lo_addr) && (mc <= aic_hi_addr))
+    return true;
   return false;
 }
 
@@ -1748,6 +1815,283 @@ Bit32u bx_radeon9800_c::core_reg_read(Bit32u off, bool *hit)
   return 0;
 }
 
+// =====================================================================
+// Register access trace (off unless 'radeon9800: trace=N' is set)
+// =====================================================================
+
+static const struct { Bit32u off; const char *name; } radeon9800_trace_names[] = {
+  { R9800_MM_INDEX, "MM_INDEX" }, { R9800_MM_DATA, "MM_DATA" },
+  { R9800_CLOCK_CNTL_INDEX, "CLOCK_CNTL_INDEX" }, { R9800_CLOCK_CNTL_DATA, "CLOCK_CNTL_DATA" },
+  { R9800_BUS_CNTL, "BUS_CNTL" },
+  { R9800_GEN_INT_CNTL, "GEN_INT_CNTL" }, { R9800_GEN_INT_STATUS, "GEN_INT_STATUS" },
+  { R9800_CRTC_GEN_CNTL, "CRTC_GEN_CNTL" }, { R9800_CRTC_EXT_CNTL, "CRTC_EXT_CNTL" },
+  { R9800_DAC_CNTL, "DAC_CNTL" }, { R9800_CRTC_STATUS, "CRTC_STATUS" },
+  { R9800_CONFIG_CNTL, "CONFIG_CNTL" }, { R9800_RBBM_SOFT_RESET, "RBBM_SOFT_RESET" },
+  { R9800_MC_STATUS, "MC_STATUS" },
+  { R9800_CRTC_H_TOTAL_DISP, "CRTC_H_TOTAL_DISP" }, { R9800_CRTC_V_TOTAL_DISP, "CRTC_V_TOTAL_DISP" },
+  { R9800_CRTC_VLINE_CRNT_VLINE, "CRTC_VLINE_CRNT_VLINE" },
+  { R9800_CRTC_OFFSET, "CRTC_OFFSET" }, { R9800_CRTC_OFFSET_CNTL, "CRTC_OFFSET_CNTL" },
+  { R9800_CRTC_PITCH, "CRTC_PITCH" }, { R9800_DISPLAY_BASE_ADDR, "DISPLAY_BASE_ADDR" },
+  { R9800_FP_GEN_CNTL, "FP_GEN_CNTL" }, { R9800_FP2_GEN_CNTL, "FP2_GEN_CNTL" },
+  { R9800_CRTC2_GEN_CNTL, "CRTC2_GEN_CNTL" },
+  { R9800_CP_RB_RPTR, "CP_RB_RPTR" }, { R9800_CP_RB_WPTR, "CP_RB_WPTR" },
+  { R9800_CP_STAT, "CP_STAT" }, { R9800_CP_CSQ_STAT, "CP_CSQ_STAT" },
+  { R9800_TV_DAC_CNTL, "TV_DAC_CNTL" }, { R9800_SURFACE_CNTL, "SURFACE_CNTL" },
+  { R9800_DISP_OUTPUT_CNTL, "DISP_OUTPUT_CNTL" }, { R9800_RBBM_STATUS, "RBBM_STATUS" },
+  { R9800_WAIT_UNTIL, "WAIT_UNTIL" },
+  { 0xffffffff, NULL }
+};
+
+static const char *radeon9800_trace_name(Bit32u off)
+{
+  for (int i = 0; radeon9800_trace_names[i].name != NULL; i++)
+    if (radeon9800_trace_names[i].off == off)
+      return radeon9800_trace_names[i].name;
+  return "";
+}
+
+// The indexed apertures carry the register that is really being touched:
+// report the selector alongside the access so a PLL or MM_DATA poll is
+// identifiable.
+Bit32u bx_radeon9800_c::trace_index_of(Bit32u off)
+{
+  if (off == R9800_CLOCK_CNTL_DATA)
+    return clock_cntl_index & 0x3f;
+  if (off == R9800_MM_DATA)
+    return mm_index & 0xfffc;
+  return 0xffffffff;
+}
+
+// Emit a pending run of identical reads
+void bx_radeon9800_c::trace_read_flush(void)
+{
+  if (!trace_rd_valid || (trace_rd_run == 0))
+    return;
+  if (trace_mask & 2) {
+    if (trace_rd_idx != 0xffffffff) {
+      BX_INFO(("trace: R %04x[%02x] %-20s = %08x  x%u", trace_rd_off, trace_rd_idx,
+               radeon9800_trace_name(trace_rd_off), trace_rd_val, trace_rd_run));
+    } else {
+      BX_INFO(("trace: R %04x      %-20s = %08x  x%u", trace_rd_off,
+               radeon9800_trace_name(trace_rd_off), trace_rd_val, trace_rd_run));
+    }
+  }
+  trace_rd_run = 0;
+  trace_rd_valid = false;
+}
+
+// Engine state and the register writes that led up to a stall
+void bx_radeon9800_c::trace_state_dump(void)
+{
+  BX_INFO(("trace:   crtc_gen=%08x crtc2_gen=%08x crtc_ext=%08x dac=%08x disp_out=%08x",
+           crtc_gen_cntl, crtc_ext_cntl, crtc2_gen_cntl, dac_cntl, disp_output_cntl));
+  BX_INFO(("trace:   disp_ext=%d disp_crtc=%d disp_output=%d timing_valid=%d ppll_pend=%d p2pll_pend=%d",
+           (int)disp_ext, disp_crtc, disp_output, (int)timing_valid,
+           (int)ppll_update_pending, (int)p2pll_update_pending));
+  BX_INFO(("trace:   int_cntl=%08x int_status=%08x irqs_delivered=%u irq_line=%d",
+           gen_int_cntl, gen_int_status, trace_irq_count, (int)trace_irq_level));
+  BX_INFO(("trace:   cp_rptr=%08x cp_wptr=%08x rb_cntl=%08x rb_base=%08x scratch_addr=%08x umsk=%02x",
+           cp_rb_rptr, cp_rb_wptr, cp_rb_cntl, cp_rb_base, scratch_addr, scratch_umsk));
+  BX_INFO(("trace:   preceding register writes (oldest first):"));
+  Bit32u n = (trace_wr_seen < (Bit32u)R9800_TRACE_WRITES) ? trace_wr_seen : (Bit32u)R9800_TRACE_WRITES;
+  Bit32u first = (trace_wr_pos + R9800_TRACE_WRITES - n) % R9800_TRACE_WRITES;
+  for (Bit32u i = 0; i < n; i++) {
+    Bit32u k = (first + i) % R9800_TRACE_WRITES;
+    if (trace_wr_idx[k] != 0xffffffff) {
+      BX_INFO(("trace:     W %04x[%02x] %-20s = %08x", trace_wr_off[k], trace_wr_idx[k],
+               radeon9800_trace_name(trace_wr_off[k]), trace_wr_val[k]));
+    } else {
+      BX_INFO(("trace:     W %04x      %-20s = %08x", trace_wr_off[k],
+               radeon9800_trace_name(trace_wr_off[k]), trace_wr_val[k]));
+    }
+  }
+}
+
+// One register read over and over, whatever it returns
+void bx_radeon9800_c::trace_poll_report(void)
+{
+  if (trace_polls >= 6)
+    return;
+  trace_polls++;
+  if (trace_run_varies) {
+    BX_INFO(("trace: guest is spinning on register %04x %s (%u reads, value varies, first %08x last %08x)",
+             trace_run_off, radeon9800_trace_name(trace_run_off),
+             trace_run_len, trace_run_first, trace_run_last));
+  } else {
+    BX_INFO(("trace: guest is spinning on register %04x %s = %08x (%u reads)",
+             trace_run_off, radeon9800_trace_name(trace_run_off),
+             trace_run_last, trace_run_len));
+  }
+  trace_state_dump();
+}
+
+// A wait loop that touches several registers never trips the single
+// register detector, so a long run of accesses confined to a handful of
+// registers is reported as a stall in its own right.
+void bx_radeon9800_c::trace_block_report(void)
+{
+  if (trace_polls >= 6)
+    return;
+  trace_polls++;
+  BX_INFO(("trace: guest appears stuck: %u register accesses touching only %d registers",
+           trace_blk_total, trace_blk_n));
+  for (int i = 0; i < trace_blk_n; i++) {
+    BX_INFO(("trace:   %04x %-20s  x%u", trace_blk_off[i],
+             radeon9800_trace_name(trace_blk_off[i]), trace_blk_cnt[i]));
+  }
+  trace_state_dump();
+}
+
+void bx_radeon9800_c::trace_block_note(Bit32u off)
+{
+  int i;
+  trace_blk_total++;
+  for (i = 0; i < trace_blk_n; i++) {
+    if (trace_blk_off[i] == off)
+      break;
+  }
+  if (i < trace_blk_n) {
+    trace_blk_cnt[i]++;
+  } else if (trace_blk_n < R9800_TRACE_BLOCK_REGS) {
+    trace_blk_off[trace_blk_n] = off;
+    trace_blk_cnt[trace_blk_n] = 1;
+    trace_blk_n++;
+  } else {
+    // more registers than a wait loop would touch: this is real work
+    trace_blk_n = 0;
+    trace_blk_total = 0;
+    return;
+  }
+  if (trace_blk_total >= (Bit32u)R9800_TRACE_BLOCK) {
+    if (trace_mask & 4)
+      trace_block_report();
+    trace_blk_n = 0;
+    trace_blk_total = 0;
+  }
+}
+
+// Report which memory-controller window an address the engine will write
+// through lands in. An address matching no window still "succeeds" as a
+// direct bus-master access, so a fence programmed outside every window is
+// written into nothing and the failure is otherwise invisible.
+void bx_radeon9800_c::trace_mc_probe(const char *what, Bit32u mc)
+{
+  Bit32u kind = 0, addr = 0, off = 0;
+  const char *win;
+  Bit32u agp_start = (mc_agp_location & 0xffff) << 16;
+  Bit32u agp_top = (mc_agp_location & 0xffff0000) | 0xffff;
+  bool aic_on = (aic_cntl & R9800_AIC_TRANSLATE_EN) != 0;
+
+  if (!mc_resolve(mc, &kind, &addr)) {
+    BX_INFO(("trace: %s mc=%08x does not resolve at all", what, mc));
+    return;
+  }
+  if (mc_is_vram(mc, &off))
+    win = "local VRAM";
+  else if ((agp_start <= agp_top) && (mc >= agp_start) && (mc <= agp_top))
+    win = "AGP window";
+  else if (aic_on && (mc >= aic_lo_addr) && (mc <= aic_hi_addr))
+    win = "PCI GART";
+  else
+    win = "NO WINDOW MATCHED, written into nothing";
+  BX_INFO(("trace: %s mc=%08x -> %s, %s addr %08x", what, mc, win,
+           kind ? "bus" : "vram", addr));
+  BX_INFO(("trace:   fb_loc=%08x agp_loc=%08x agp_base=%08x aic %08x..%08x en=%d",
+           mc_fb_location, mc_agp_location, agp_base, aic_lo_addr, aic_hi_addr, (int)aic_on));
+}
+
+// Periodic state dump. A driver stuck on a completion fence in memory
+// never touches a register while it spins, so no access-based detector can
+// see it. Watching the engine and the fence values over time can.
+void bx_radeon9800_c::trace_heartbeat(void)
+{
+  BX_INFO(("trace: hb disp_ext=%d crtc=%d crtc_gen=%08x int_cntl=%08x int_status=%08x irqs=%u",
+           (int)disp_ext, disp_crtc, crtc_gen_cntl, gen_int_cntl, gen_int_status, trace_irq_count));
+  BX_INFO(("trace: hb cp rb_base=%08x rb_cntl=%08x rptr=%08x wptr=%08x csq_cntl=%08x exec=%d batch=%d",
+           cp_rb_base, cp_rb_cntl, cp_rb_rptr, cp_rb_wptr, cp_csq_cntl,
+           (int)cp_executing, (int)cp_batch_pending));
+  BX_INFO(("trace: hb fifo rd=%u wr=%u  scratch addr=%08x umsk=%02x  fences %08x %08x %08x %08x %08x %08x",
+           cp_fifo_rd, cp_fifo_wr, scratch_addr, scratch_umsk,
+           gui_scratch[0], gui_scratch[1], gui_scratch[2],
+           gui_scratch[3], gui_scratch[4], gui_scratch[5]));
+  // What the driver actually sees when it polls memory, as opposed to the
+  // register copies above: the retired read pointer and its mailbox, and
+  // the mirrored fences.
+  {
+    Bit32u mail = 0xffffffff, f[6];
+    if (cp_rb_rptr_addr)
+      gpu_read32(cp_rb_rptr_addr & ~3u, &mail);
+    for (int i = 0; i < 6; i++) {
+      f[i] = 0xffffffff;
+      if (scratch_addr)
+        gpu_read32((scratch_addr & ~3u) + (Bit32u)i * 4u, &f[i]);
+    }
+    BX_INFO(("trace: hb retire=%08x shadow=%08x rptr_addr=%08x mailbox reads %08x",
+             cp_retire_rptr, cp_shadow_last, cp_rb_rptr_addr, mail));
+    BX_INFO(("trace: hb fences in memory %08x %08x %08x %08x %08x %08x",
+             f[0], f[1], f[2], f[3], f[4], f[5]));
+  }
+}
+
+void bx_radeon9800_c::trace_reg_read(Bit32u off, Bit32u val)
+{
+  Bit32u idx = trace_index_of(off);
+
+  trace_block_note(off);
+
+  // A wait loop reads one register over and over. The value it returns may
+  // well change each time (a counter, a status register), so the spin is
+  // tracked per register rather than per result.
+  if ((off == trace_run_off) && (idx == trace_run_idx)) {
+    trace_run_len++;
+    if (val != trace_run_last) {
+      trace_run_last = val;
+      trace_run_varies = true;
+    }
+    if ((trace_mask & 4) && (trace_run_len == R9800_TRACE_POLL_RUN))
+      trace_poll_report();
+  } else {
+    trace_run_off = off;
+    trace_run_idx = idx;
+    trace_run_first = val;
+    trace_run_last = val;
+    trace_run_varies = false;
+    trace_run_len = 1;
+  }
+
+  if ((off == trace_rd_off) && (val == trace_rd_val) && (idx == trace_rd_idx) && trace_rd_valid) {
+    trace_rd_run++;
+    return;
+  }
+  trace_read_flush();
+  trace_rd_off = off;
+  trace_rd_val = val;
+  trace_rd_idx = idx;
+  trace_rd_run = 1;
+  trace_rd_valid = true;
+}
+
+void bx_radeon9800_c::trace_reg_write(Bit32u off, Bit32u val, Bit32u mask)
+{
+  Bit32u idx = trace_index_of(off);
+  trace_block_note(off);
+  trace_read_flush();
+  trace_wr_off[trace_wr_pos] = off;
+  trace_wr_val[trace_wr_pos] = val;
+  trace_wr_idx[trace_wr_pos] = idx;
+  trace_wr_pos = (trace_wr_pos + 1) % R9800_TRACE_WRITES;
+  trace_wr_seen++;
+  if (trace_mask & 1) {
+    if (idx != 0xffffffff) {
+      BX_INFO(("trace: W %04x[%02x] %-20s = %08x mask %08x", off, idx,
+               radeon9800_trace_name(off), val, mask));
+    } else {
+      BX_INFO(("trace: W %04x      %-20s = %08x mask %08x", off,
+               radeon9800_trace_name(off), val, mask));
+    }
+  }
+}
+
 Bit32u bx_radeon9800_c::reg_read32(Bit32u off)
 {
   Bit32u v;
@@ -1755,14 +2099,17 @@ Bit32u bx_radeon9800_c::reg_read32(Bit32u off)
 
   off &= 0xfffc;
   v = core_reg_read(off, &hit);
-  if (hit) return v;
-  if (display_reg_read(off, &v)) return v;
-  if (ov0_reg_read(off, &v)) return v;
-  if (subpic_reg_read(off, &v)) return v;
-  if (r2d_reg_read(off, &v)) return v;
-  if (pm4_reg_read(off, &v)) return v;
-  if (r3d_reg_read(off, &v)) return v;
-  return 0;
+  if (!hit &&
+      !display_reg_read(off, &v) &&
+      !ov0_reg_read(off, &v) &&
+      !subpic_reg_read(off, &v) &&
+      !r2d_reg_read(off, &v) &&
+      !pm4_reg_read(off, &v) &&
+      !r3d_reg_read(off, &v))
+    v = 0;
+  if (trace_mask && !on_cp_thread())
+    trace_reg_read(off, v);
+  return v;
 }
 
 bool bx_radeon9800_c::core_reg_write(Bit32u off, Bit32u val, Bit32u mask)
@@ -2030,6 +2377,9 @@ void bx_radeon9800_c::reg_write(Bit32u off, Bit32u val, Bit32u mask)
 {
   off &= 0xfffc;
   val &= mask;
+
+  if (trace_mask && !on_cp_thread())
+    trace_reg_write(off, val, mask);
 
   if (core_reg_write(off, val, mask))
     return;

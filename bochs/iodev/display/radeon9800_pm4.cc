@@ -91,6 +91,8 @@ void bx_radeon9800_c::pm4_reset(void)
   cp_me_ram_addr = 0;
   cp_me_ram_raddr = 0;
   cp_csq_addr = 0;
+  cp_vc_debug_config = 0;
+  cp_dma_table_addr = 0;
   scratch_umsk = 0;
   scratch_addr = 0;
   memset(gui_scratch, 0, sizeof(gui_scratch));
@@ -166,11 +168,95 @@ Bit32u bx_radeon9800_c::pm4_ring_mask(void)
   return (1u << (l2 + 1)) - 1;
 }
 
-// The primary stream is bus-mastered in the PRIBM modes
+// Does the primary stream come from memory rather than the PIO aperture?
+// The R100-era enumeration only named modes 0 to 4 and 15, but R300 drivers
+// start the ring with mode 8. Rather than list the bus-mastering modes, the
+// modes that leave the primary stream disabled or fed by PIO are named and
+// everything else runs the ring by bus mastering: a mode we do not know
+// must not silently stop the command processor from fetching.
 bool bx_radeon9800_c::pm4_ring_bm(void)
 {
   Bit32u mode = cp_csq_cntl >> R9800_CSQ_MODE_SHIFT;
-  return (mode == R9800_CSQ_PRIBM_INDDIS) || (mode == R9800_CSQ_PRIBM_INDBM);
+  switch (mode) {
+    case R9800_CSQ_PRIDIS_INDDIS:   // primary stream disabled
+    case R9800_CSQ_PRIPIO_INDDIS:   // primary stream written through the aperture
+    case R9800_CSQ_PRIPIO_INDBM:
+    case R9800_CSQ_PRIPIO_INDPIO:
+      return false;
+    default:
+      return true;
+  }
+}
+
+// Free-running command-processor timestamp, counted at the engine clock.
+// A driver that times a delay by waiting for this to advance would spin
+// forever on a constant value.
+Bit32u bx_radeon9800_c::pm4_timestamp(void)
+{
+  double hz = spll_hz();
+  if (!(hz > 1000000.0))
+    hz = ref_freq_hz;
+  double ticks = (double)bx_virt_timer.time_usec(0) * (hz / 1000000.0);
+  return (Bit32u)(Bit64u)ticks;
+}
+
+// GUI bus-master DMA. The address written to DMA_TABLE_ADDR points at a
+// list of descriptors, each { src, dst, command, reserved }, where bit 31
+// of the command ends the list and the low bits carry the byte count.
+// Completion latches BUSMASTER_EOL in GEN_INT_STATUS, and the command word
+// is written back with the end-of-list bit cleared, because a driver may
+// wait on the interrupt or poll the descriptor rather than the copy.
+void bx_radeon9800_c::dma_gui_run(Bit32u table)
+{
+  Bit32u addr = table & ~3u;
+  int moved = 0;
+
+  for (int guard = 0; guard < 256; guard++) {
+    Bit32u src, dst, cmd, count;
+    if (!gpu_read32(addr, &src) || !gpu_read32(addr + 4, &dst) || !gpu_read32(addr + 8, &cmd))
+      break;
+    count = cmd & 0x00ffffff;
+    // A descriptor that carries no byte count still moves one dword. The
+    // R300 driver's DMA self-test depends on it: it seeds two adjacent
+    // words, submits a single end-of-list descriptor whose command word is
+    // exactly the EOL bit, and then polls the destination word. Anything
+    // wider than this is inferred, not taken from a register reference.
+    if (count == 0)
+      count = 4;
+    if (count > (16u << 20))
+      count = 16u << 20;
+    if (trace_mask & 16)
+      BX_INFO(("trace: dma descriptor at %08x: src=%08x dst=%08x cmd=%08x count=%u%s",
+               addr, src, dst, cmd, count, (cmd & 0x80000000) ? " EOL" : ""));
+    Bit32u dst0 = dst;
+    while (count) {
+      Bit8u buf[256];
+      Bit32u n = (count > sizeof(buf)) ? (Bit32u)sizeof(buf) : count;
+      if (!gpu_read(src, buf, n) || !gpu_write(dst, buf, n)) {
+        if (trace_mask)
+          BX_INFO(("trace: dma descriptor at %08x: transfer %08x -> %08x failed", addr, src, dst));
+        break;
+      }
+      src += n;
+      dst += n;
+      count -= n;
+      moved = 1;
+    }
+    if (trace_mask & 16) {
+      Bit32u after = 0;
+      gpu_read32(dst0, &after);
+      BX_INFO(("trace: dma descriptor at %08x: %s, destination word now %08x",
+               addr, moved ? "transferred" : "moved nothing", after));
+    }
+    // report the descriptor as retired
+    gpu_write32(addr + 8, cmd & ~0x80000000u);
+    if (cmd & 0x80000000)
+      break;
+    addr += 16;
+  }
+  UNUSED(moved);
+  gen_int_status |= R9800_INT_BUSMASTER_EOL;
+  gen_int_update();
 }
 
 bool bx_radeon9800_c::pm4_active(void)
@@ -234,8 +320,12 @@ void bx_radeon9800_c::pm4_rptr_writeback(void)
 {
   Bit32u retire = cp_retire_rptr;
   if (cp_rb_rptr_addr && !(cp_rb_cntl & R9800_RB_NO_UPDATE) && (retire != cp_shadow_last)) {
-    if (gpu_write32(cp_rb_rptr_addr & ~3u, retire))
+    if (gpu_write32(cp_rb_rptr_addr & ~3u, retire)) {
       cp_shadow_last = retire;
+    } else if (trace_mask) {
+      BX_INFO(("trace: ring read-pointer writeback to %08x failed (address does not resolve)",
+               cp_rb_rptr_addr & ~3u));
+    }
   }
 }
 
@@ -561,6 +651,26 @@ void bx_radeon9800_c::cp_packet(Bit32u hdr)
   Bit32u count;
   Bit32u *pl = cp_pl;
 
+  if (trace_mask & 16) {
+    switch (R9800_PM4_TYPE(hdr)) {
+      case 0:
+        BX_INFO(("trace: pkt0 hdr=%08x reg=%04x count=%u %s", hdr, R9800_PM4_T0_REG(hdr),
+                 R9800_PM4_COUNT(hdr), (hdr & R9800_PM4_T0_ONE_REG_WR) ? "(one reg)" : ""));
+        break;
+      case 1:
+        BX_INFO(("trace: pkt1 hdr=%08x reg0=%04x reg1=%04x", hdr,
+                 R9800_PM4_T1_REG0(hdr), R9800_PM4_T1_REG1(hdr)));
+        break;
+      case 2:
+        BX_INFO(("trace: pkt2 hdr=%08x (filler)", hdr));
+        break;
+      default:
+        BX_INFO(("trace: pkt3 hdr=%08x op=%02x count=%u", hdr,
+                 R9800_PM4_T3_OPCODE(hdr), R9800_PM4_COUNT(hdr)));
+        break;
+    }
+  }
+
   switch (R9800_PM4_TYPE(hdr)) {
     case 0: {
       Bit32u reg = R9800_PM4_T0_REG(hdr);
@@ -570,8 +680,12 @@ void bx_radeon9800_c::cp_packet(Bit32u hdr)
         if (!cp_get(&v))
           return;
         Bit32u treg = (hdr & R9800_PM4_T0_ONE_REG_WR) ? reg : reg + i * 4;
+        if (trace_mask & 16)
+          BX_INFO(("trace:   pkt0 %04x = %08x", treg, v));
         if (!pm4_reg_in_fetch_block(treg))
           reg_poke(treg, v);
+        else if (trace_mask & 16)
+          BX_INFO(("trace:   pkt0 REFUSED write to fetch-block register %04x = %08x", treg, v));
       }
       break;
     }
@@ -597,6 +711,10 @@ void bx_radeon9800_c::cp_packet(Bit32u hdr)
           return;
         if (i < n)
           pl[i] = v;
+      }
+      if (trace_mask & 16) {
+        for (Bit32u i = 0; i < n; i++)
+          BX_INFO(("trace:   pkt3 payload[%u] = %08x", i, pl[i]));
       }
       pm4_exec_packet3(hdr, pl, n);
       break;
@@ -756,8 +874,19 @@ void bx_radeon9800_c::pm4_wait_until(Bit32u val)
 void bx_radeon9800_c::pm4_scratch_write(int n, Bit32u val)
 {
   gui_scratch[n] = val;
-  if ((scratch_umsk & (1u << n)) && scratch_addr)
-    gpu_write32((scratch_addr & ~3u) + (Bit32u)n * 4u, val);
+  if ((scratch_umsk & (1u << n)) && scratch_addr) {
+    Bit32u fa = (scratch_addr & ~3u) + (Bit32u)n * 4u;
+    // A fence that never lands leaves the driver waiting on memory, which
+    // no register trace can show: say so rather than dropping it silently.
+    // The windows can be programmed after the address, so report where the
+    // first few actually go rather than only where they would have gone.
+    if (trace_mask && (trace_fence_probes < 4)) {
+      trace_fence_probes++;
+      trace_mc_probe("scratch fence write", fa);
+    }
+    if (!gpu_write32(fa, val) && trace_mask)
+      BX_INFO(("trace: scratch fence %d writeback to %08x failed (address does not resolve)", n, fa));
+  }
 }
 
 // ---------------------------------------------------------------------
@@ -804,6 +933,21 @@ bool bx_radeon9800_c::pm4_reg_read(Bit32u off, Bit32u *val)
       *val = pm4_active() ? (R9800_CP_STAT_CP_BUSY | R9800_CP_STAT_CMDSTRM_BUSY | R9800_CP_STAT_CSI_BUSY |
                              R9800_CP_STAT_CSQ_PRIMARY_BUSY) : 0;
       return true;
+    case R9800_CP_VC_TIMESTAMP0:
+    case R9800_CP_VC_TIMESTAMP1:
+      *val = pm4_timestamp();
+      return true;
+    case R9800_CP_DMA_TABLE_ADDR:  *val = cp_dma_table_addr; return true;
+    case R9800_CP_VC_DEBUG_CONFIG: *val = cp_vc_debug_config; return true;
+    case R9800_CP_VC_STAT:         *val = 0; return true;
+    case R9800_CP_CSQ_AVAIL: {
+      // Free entries per queue. Reporting zero would stall a driver that
+      // waits for room before pushing commands.
+      Bit32u room = R9800_CP_FIFO_DWORDS - (cp_fifo_wr - cp_fifo_rd);
+      if (room > 0x3f) room = 0x3f;
+      *val = room | (room << 8) | (room << 16);
+      return true;
+    }
     case R9800_CP_CSQ_ADDR:     *val = cp_csq_addr; return true;
     case R9800_CP_CSQ_DATA:     *val = 0; return true;
     case R9800_CP_CSQ_STAT:
@@ -845,12 +989,14 @@ bool bx_radeon9800_c::pm4_reg_write(Bit32u off, Bit32u val, Bit32u mask)
     case R9800_CP_RB_BASE:
       MERGE(cp_rb_base);
       cp_rb_base &= 0xfffffffc;
+      if (trace_mask) trace_mc_probe("ring base", cp_rb_base);
       return true;
     case R9800_CP_RB_CNTL:
       MERGE(cp_rb_cntl);
       return true;
     case R9800_CP_RB_RPTR_ADDR:
       MERGE(cp_rb_rptr_addr);
+      if (trace_mask) trace_mc_probe("ring rptr writeback", cp_rb_rptr_addr & ~3u);
       return true;
     case R9800_CP_RB_RPTR:
       // read-only status; a write realigns the executor's view
@@ -912,13 +1058,27 @@ bool bx_radeon9800_c::pm4_reg_write(Bit32u off, Bit32u val, Bit32u mask)
       MERGE(scratch_umsk);
       scratch_umsk &= 0x3f;
       return true;
-    case R9800_SCRATCH_ADDR: MERGE(scratch_addr); return true;
+    case R9800_SCRATCH_ADDR:
+      MERGE(scratch_addr);
+      if (trace_mask) trace_mc_probe("scratch fences", scratch_addr & ~3u);
+      return true;
     case R9800_CP_RESYNC_ADDR: MERGE(cp_resync_addr); return true;
     case R9800_CP_RESYNC_DATA:
       MERGE(cp_resync_data);
-      // the resync token is mirrored to the address programmed before it
-      if (cp_resync_addr)
-        gpu_write32(cp_resync_addr & ~3u, cp_resync_data);
+      // The token is mirrored to the address programmed just before it, but
+      // only when that address really names memory the engine owns. R300
+      // drivers also drive this pair with small index-like values, and an
+      // unmapped MC address falls through to a raw bus-master write at the
+      // same number: taking "1" for an address corrupts guest page zero.
+      if (cp_resync_addr && mc_addr_is_mapped(cp_resync_addr & ~3u)) {
+        if (trace_mask & 16)
+          BX_INFO(("trace: resync token %08x -> mc %08x", cp_resync_data, cp_resync_addr & ~3u));
+        if (!gpu_write32(cp_resync_addr & ~3u, cp_resync_data) && trace_mask)
+          BX_INFO(("trace: resync token writeback to %08x failed", cp_resync_addr & ~3u));
+      } else if (cp_resync_addr && (trace_mask & 16)) {
+        BX_INFO(("trace: resync token %08x not mirrored: mc %08x is not mapped",
+                 cp_resync_data, cp_resync_addr & ~3u));
+      }
       return true;
     case R9800_CP_ME_CNTL: MERGE(cp_me_cntl); return true;
     case R9800_CP_ME_RAM_ADDR:
@@ -937,6 +1097,34 @@ bool bx_radeon9800_c::pm4_reg_write(Bit32u off, Bit32u val, Bit32u mask)
       cp_me_ram_addr = (cp_me_ram_addr + 1) & 0xff;
       return true;
     case R9800_CP_STAT: return true;
+    case R9800_CP_DMA_TABLE_ADDR: {
+      MERGE(cp_dma_table_addr);
+      // Not yet implemented. Dump what the driver placed there so the
+      // structure identifies itself: PM4 packet headers mean a command
+      // buffer, repeating address/length triples mean a descriptor list.
+      if (trace_mask & 16) {
+        Bit32u a = cp_dma_table_addr & ~3u;
+        BX_INFO(("trace: 0780 = %08x, contents of that address:", cp_dma_table_addr));
+        trace_mc_probe("0780 target", a);
+        for (Bit32u i = 0; i < 16; i += 4) {
+          Bit32u v0 = 0, v1 = 0, v2 = 0, v3 = 0;
+          gpu_read32(a + (i + 0) * 4, &v0);
+          gpu_read32(a + (i + 1) * 4, &v1);
+          gpu_read32(a + (i + 2) * 4, &v2);
+          gpu_read32(a + (i + 3) * 4, &v3);
+          BX_INFO(("trace:   +%02x: %08x %08x %08x %08x", i * 4, v0, v1, v2, v3));
+        }
+      }
+      if (cp_dma_table_addr)
+        dma_gui_run(cp_dma_table_addr);
+      return true;
+    }
+    case R9800_CP_VC_DEBUG_CONFIG: MERGE(cp_vc_debug_config); return true;
+    case R9800_CP_VC_TIMESTAMP0:
+    case R9800_CP_VC_TIMESTAMP1:
+    case R9800_CP_VC_STAT:
+    case R9800_CP_CSQ_AVAIL:
+      return true;
     case R9800_CP_CSQ_ADDR: MERGE(cp_csq_addr); return true;
     case R9800_CP_CSQ_DATA: return true;
     case R9800_CP_CSQ_STAT:

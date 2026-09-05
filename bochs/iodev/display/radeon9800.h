@@ -53,6 +53,16 @@
 #define R9800_PM4_MAX_PAYLOAD 16384
 
 #define R9800_RASTER_MAX_WORKERS 8
+// Register writes kept for the trace's poll report
+#define R9800_TRACE_WRITES 96
+// Identical consecutive reads of one register before it is called a spin
+#define R9800_TRACE_POLL_RUN 200000
+// Register accesses confined to a few registers before it is called a stall
+#define R9800_TRACE_BLOCK 400000
+// Distinct registers a stalled loop may touch before it looks like real work
+#define R9800_TRACE_BLOCK_REGS 32
+// Display frames between heartbeat state dumps (trace bit 3)
+#define R9800_TRACE_HB_FRAMES 120
 
 // 14-bit signed coordinate field (S.14.0)
 static inline int r9800_sx14(Bit32u v)
@@ -528,6 +538,7 @@ private:
 
   // GPU (MC) address space
   bool   mc_is_vram(Bit32u mc, Bit32u *vram_off);
+  bool   mc_addr_is_mapped(Bit32u mc);
   bool   mc_resolve(Bit32u mc, Bit32u *kind, Bit32u *addr);
   bool   gpu_read(Bit32u mc, Bit8u *dst, Bit32u len);
   bool   gpu_write(Bit32u mc, const Bit8u *src, Bit32u len);
@@ -653,6 +664,8 @@ private:
   void   pm4_scratch_write(int n, Bit32u val);
   void   pm4_rptr_writeback(void);
   bool   on_cp_thread(void);
+  Bit32u pm4_timestamp(void);
+  void   dma_gui_run(Bit32u table);
 
   // ---- radeon9800_3d.cc: 3D engine ----
   bool   r3d_reg_read(Bit32u off, Bit32u *val);
@@ -1016,6 +1029,8 @@ private:
   Bit32u cp_me_ram_raddr;
   Bit32u cp_me_ram[R9800_CP_ME_RAM_SIZE][2];
   Bit32u cp_csq_addr;
+  Bit32u cp_vc_debug_config;
+  Bit32u cp_dma_table_addr;   // 0x0780: address handed to the engine, purpose unconfirmed
   bool   pm4_ind_busy;
   bool   pm4_ind_pending;
   Bit32u pump_frame_rem;
@@ -1122,6 +1137,38 @@ private:
     Bit32u apal[16];
     Bit32u frame_stamp;
   } subpic;
+
+  // ---- register access trace (bochsrc 'radeon9800: trace=N', 0 = off) ----
+  int    trace_mask;
+  Bit32u trace_rd_off, trace_rd_val, trace_rd_idx, trace_rd_run;
+  bool   trace_rd_valid;
+  // Run of consecutive reads of one register whatever it returns: catches a
+  // wait loop on a counter or a status register that keeps changing
+  Bit32u trace_run_off, trace_run_idx, trace_run_len;
+  Bit32u trace_run_first, trace_run_last;
+  bool   trace_run_varies;
+  Bit32u trace_wr_off[R9800_TRACE_WRITES];
+  Bit32u trace_wr_val[R9800_TRACE_WRITES];
+  Bit32u trace_wr_idx[R9800_TRACE_WRITES];
+  Bit32u trace_wr_pos, trace_wr_seen;
+  Bit32u trace_polls;
+  Bit32u trace_blk_off[R9800_TRACE_BLOCK_REGS], trace_blk_cnt[R9800_TRACE_BLOCK_REGS];
+  Bit32u trace_blk_total;
+  int    trace_blk_n;
+  Bit32u trace_irq_count;   // interrupts actually delivered to the guest
+  bool   trace_irq_level;
+  Bit32u trace_hb_frames;
+  Bit32u trace_fence_probes;
+  void   trace_heartbeat(void);
+  void   trace_mc_probe(const char *what, Bit32u mc);
+  void   trace_reg_write(Bit32u off, Bit32u val, Bit32u mask);
+  void   trace_reg_read(Bit32u off, Bit32u val);
+  void   trace_read_flush(void);
+  void   trace_poll_report(void);
+  void   trace_block_note(Bit32u off);
+  void   trace_block_report(void);
+  void   trace_state_dump(void);
+  Bit32u trace_index_of(Bit32u off);
 
   // DDC / I2C
   bx_ddc_c ddc;

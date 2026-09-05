@@ -19,6 +19,8 @@ set echo
             --enable-clgd54xx \
             --enable-geforce \
             --enable-voodoo \
+            --enable-rage128 \
+            --enable-radeon9800 \
             --enable-usb \
             --enable-usb-ohci \
             --enable-usb-ehci \

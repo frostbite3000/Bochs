@@ -106,6 +106,7 @@
 #define R9800_INT_VSYNC_DIFF        (1u << 11)
 #define R9800_INT_DMA_VIPH0         (1u << 12)
 #define R9800_INT_I2C               (1u << 17)
+#define R9800_INT_BUSMASTER_EOL     (1u << 16)
 #define R9800_INT_GUI_IDLE          (1u << 19)
 #define R9800_INT_VIPH              (1u << 24)
 #define R9800_INT_SW                (1u << 25)
@@ -119,7 +120,7 @@
                                R9800_INT_SNAPSHOT | R9800_INT_FP_DETECT | R9800_INT_CRTC2_VLINE | \
                                R9800_INT_CRTC2_VSYNC | R9800_INT_SNAPSHOT2 | R9800_INT_CRTC2_VBLANK | \
                                R9800_INT_FP2_DETECT | R9800_INT_GUI_IDLE | R9800_INT_SW | \
-                               R9800_INT_I2C | R9800_INT_DVI_I2C)
+                               R9800_INT_BUSMASTER_EOL | R9800_INT_I2C | R9800_INT_DVI_I2C)
 #define R9800_INT_ACK_MASK    (R9800_INT_SUPPORTED | R9800_INT_VSYNC_DIFF | R9800_INT_CAP0 | \
                                R9800_INT_GUIDMA | R9800_INT_VIDDMA | R9800_INT_VIPH | R9800_INT_GEYSERVILLE | R9800_INT_HDCP)
 
@@ -519,6 +520,18 @@
 #define R9800_SCRATCH_ADDR          0x0774
 #define R9800_CP_RESYNC_ADDR        0x0778
 #define R9800_CP_RESYNC_DATA        0x077c
+// 0x0780: the R300 Windows driver hands the engine an address here as the
+// last write of a command buffer and then waits. Purpose not yet confirmed
+// against any register reference.
+#define R9800_CP_DMA_TABLE_ADDR     0x0780
+#define R9800_CP_VC_DEBUG_CONFIG    0x07a4
+#define R9800_CP_VC_STAT            0x07a8
+// Free-running command-processor timestamps. Drivers time short delays by
+// waiting for these to advance, so they must never read back constant.
+#define R9800_CP_VC_TIMESTAMP0      0x07b0
+#define R9800_CP_VC_TIMESTAMP1      0x07b4
+// Free entries in the primary / indirect / indirect2 command queues
+#define R9800_CP_CSQ_AVAIL          0x07b8
 #define R9800_CP_ME_CNTL            0x07d0
 #define R9800_CP_ME_RAM_ADDR        0x07d4
 #define R9800_CP_ME_RAM_RADDR       0x07d8
